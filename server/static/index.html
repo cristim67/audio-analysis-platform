@@ -310,6 +310,12 @@
         let canvas, ctx;
         let messageCount = 0; // Debug counter
 
+        // Smooth animation: repeat last value if no new data
+        let lastVolume = 0;
+        let lastDataTime = 0;
+        let animationInterval = null;
+        const ANIMATION_INTERVAL_MS = 100; // Add point every 100ms for smooth scrolling
+
         // Initialize canvas
         function initCanvas() {
             canvas = document.getElementById('waveformCanvas');
@@ -480,7 +486,9 @@
                 return;
             }
 
-            console.log('✅ Processing Arduino data: volume=' + data.volume + ' peak=' + data.peakToPeak);
+            // Track last value for smooth animation
+            lastVolume = data.volume;
+            lastDataTime = Date.now();
 
             // Update cards with animation
             const volumeEl = document.getElementById('volume');
@@ -489,7 +497,7 @@
             volumeEl.textContent = data.volume;
             peakEl.textContent = data.peakToPeak;
 
-            // Flash effect on update
+            // Flash effect on update (only if value changed significantly)
             volumeEl.style.textShadow = '0 0 20px #00ff00';
             peakEl.style.textShadow = '0 0 20px #ffff00';
             setTimeout(() => {
@@ -497,12 +505,8 @@
                 peakEl.style.textShadow = 'none';
             }, 100);
 
-            // Update waveform using volume (0-100 scale)
-            waveformData.push(data.volume);
-            if (waveformData.length > maxWaveformPoints) {
-                waveformData.shift();
-            }
-            drawWaveform();
+            // Update waveform - point is added by animation loop
+            // (don't add here to avoid double-adding)
 
             // Update timestamp
             const timestamp = new Date(data.timestamp || Date.now());
@@ -563,9 +567,11 @@
             if (connected) {
                 indicator.className = 'status-indicator connected';
                 text.textContent = 'Conectat';
+                startAnimationLoop(); // Resume animation
             } else {
                 indicator.className = 'status-indicator disconnected';
                 text.textContent = 'Deconectat';
+                // Keep animation running to show last known state
             }
         }
 
@@ -582,10 +588,35 @@
             }
         }
 
+        // Animation loop: keeps waveform scrolling even when no new data
+        function startAnimationLoop() {
+            if (animationInterval) return; // Already running
+
+            animationInterval = setInterval(() => {
+                // Only animate if we have received data at least once
+                if (lastDataTime > 0) {
+                    // Add current volume to waveform (either new or repeated)
+                    waveformData.push(lastVolume);
+                    if (waveformData.length > maxWaveformPoints) {
+                        waveformData.shift();
+                    }
+                    drawWaveform();
+                }
+            }, ANIMATION_INTERVAL_MS);
+        }
+
+        function stopAnimationLoop() {
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                animationInterval = null;
+            }
+        }
+
         // Initialize canvas and connect when page loads
         window.addEventListener('load', () => {
             initCanvas();
             connectWebSocket();
+            startAnimationLoop(); // Start smooth animation
         });
     </script>
 </body>

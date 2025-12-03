@@ -9,9 +9,15 @@ WebSocketsClient webSocket;
 
 // Variables for repetitive sending
 unsigned long lastSendTime = 0;
-const unsigned long sendInterval = 100; // 100ms = 10 updates per second (smooth real-time)
+const unsigned long sendInterval = 100;      // Minimum 100ms between sends
+const unsigned long forceSendInterval = 500; // Force send every 500ms even if no change
 bool isConnected = false;
 unsigned long connectionTime = 0; // Track when connection was established
+
+// Delta tracking - only send when volume changes significantly
+int lastSentVolume = -1;
+int lastSentPeakToPeak = -1;
+const int volumeDeltaThreshold = 3; // Only send if volume changed by 3% or more
 
 // Variables for receiving and processing audio data
 unsigned long receivedTimestamp = 0;
@@ -293,21 +299,38 @@ void loop()
 {
     webSocket.loop(); // Must be called constantly
 
-    // Send processed data at FIXED interval (independent of when we receive data)
+    // Smart send: only when volume changes significantly OR forced interval
     if (isConnected && hasAudioData && (millis() - lastSendTime >= sendInterval))
     {
-        char message[200];
-        snprintf(
-            message,
-            sizeof(message),
-            "{\"source\":\"arduino\",\"volume\":%d,\"peakToPeak\":%d,\"rate\":%d,\"chunk_size\":%d,\"timestamp\":%lu}",
-            processedVolume,
-            processedPeakToPeak,
-            audioRate,
-            audioChunkSize,
-            millis());
-        webSocket.sendTXT(message);
-        lastSendTime = millis();
+        unsigned long timeSinceLastSend = millis() - lastSendTime;
+        int volumeDelta = abs(processedVolume - lastSentVolume);
+
+        // Send if:
+        // 1. Volume changed significantly (delta >= threshold)
+        // 2. OR forced update interval passed (keep-alive)
+        // 3. OR first message (lastSentVolume == -1)
+        bool shouldSend = (volumeDelta >= volumeDeltaThreshold) ||
+                          (timeSinceLastSend >= forceSendInterval) ||
+                          (lastSentVolume == -1);
+
+        if (shouldSend)
+        {
+            char message[200];
+            snprintf(
+                message,
+                sizeof(message),
+                "{\"source\":\"arduino\",\"volume\":%d,\"peakToPeak\":%d,\"rate\":%d,\"chunk_size\":%d,\"timestamp\":%lu}",
+                processedVolume,
+                processedPeakToPeak,
+                audioRate,
+                audioChunkSize,
+                millis());
+            webSocket.sendTXT(message);
+
+            lastSendTime = millis();
+            lastSentVolume = processedVolume;
+            lastSentPeakToPeak = processedPeakToPeak;
+        }
     }
 
     // Watchdog: Check for free heap memory (prevent crashes)
