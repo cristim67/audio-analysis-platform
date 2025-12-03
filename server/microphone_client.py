@@ -6,12 +6,13 @@ import sys
 import time
 
 try:
-    import numpy as np
+    import base64
+
     import pyaudio
     import websockets
 except ImportError as e:
     print(f"❌ Error: Missing dependency: {e}")
-    print("📦 Install with: pip install pyaudio numpy websockets")
+    print("📦 Install with: pip install pyaudio websockets")
     sys.exit(1)
 
 
@@ -29,40 +30,6 @@ class MicrophoneClient:
         
         self.audio = pyaudio.PyAudio()
         self.stream = None
-        
-    def calculate_volume(self, audio_data: np.ndarray) -> tuple:
-        """Calculate volume from audio data using peak-to-peak (similar to Arduino)"""
-        # Convert to numpy array if not already
-        if not isinstance(audio_data, np.ndarray):
-            audio_data = np.frombuffer(audio_data, dtype=np.int16)
-        
-        # Handle empty or invalid audio data
-        if len(audio_data) == 0:
-            return 0, 0
-        
-        # Calculate peak-to-peak amplitude
-        signal_max = int(np.max(audio_data))
-        signal_min = int(np.min(audio_data))
-        peak_to_peak = signal_max - signal_min
-        
-        # Use peak-to-peak for volume calculation (similar to Arduino)
-        # Arduino maps 0-200 to 0-100 for 10-bit ADC (0-1024 range)
-        # For 16-bit audio (0-65536 range), we'll use a higher threshold for better distribution
-        volume = 0
-        if peak_to_peak > 0:
-            # Map peak-to-peak from 0-6000 to 0-100
-            # This prevents saturation and gives better volume distribution
-            # Adjust based on your microphone sensitivity
-            volume = int((peak_to_peak / 6000.0) * 100)
-            volume = min(100, max(0, volume))
-            
-            # Minimum threshold to eliminate background noise
-            # Similar to Arduino: if amplitude < 3, set volume to 0
-            # For 16-bit audio, threshold of ~100 corresponds to Arduino's threshold of 3
-            if peak_to_peak < 100:
-                volume = 0
-        
-        return volume, peak_to_peak
     
     def start_audio_stream(self) -> bool:
         """Start audio stream"""
@@ -118,16 +85,22 @@ class MicrophoneClient:
             print(f"❌ WebSocket connection error: {type(e).__name__}: {e}")
             return False
     
-    async def send_audio_data(self, volume: int, peak_to_peak: int, timestamp: int):
-        """Send audio data to server via WebSocket"""
+    async def send_audio_data(self, audio_data: bytes, timestamp: int):
+        """Send raw audio data to server via WebSocket"""
         if not self.websocket:
             return False
         
-        # JSON format similar to Arduino
+        # Encode audio data as base64 for JSON transmission
+        audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+        
+        # JSON format with raw audio data
         message = {
             "source": "laptop_microphone",
-            "volume": volume,
-            "peakToPeak": peak_to_peak,
+            "audio_data": audio_base64,
+            "format": "int16",
+            "channels": self.CHANNELS,
+            "rate": self.RATE,
+            "chunk_size": self.CHUNK,
             "timestamp": timestamp
         }
         
@@ -165,13 +138,11 @@ class MicrophoneClient:
                 
                 # Send at each interval
                 if current_time_ms - last_send_time >= self.SEND_INTERVAL_MS:
-                    volume, peak_to_peak = self.calculate_volume(audio_data)
-                    
-                    # Send to server
-                    await self.send_audio_data(volume, peak_to_peak, current_time_ms)
+                    # Send raw audio data to server (no processing)
+                    await self.send_audio_data(audio_data, current_time_ms)
                     
                     # Debug output
-                    print(f"📊 Volume: {volume} | PeakToPeak: {peak_to_peak}")
+                    print(f"📤 Sent audio chunk: {len(audio_data)} bytes")
                     
                     last_send_time = current_time_ms
                 
@@ -199,7 +170,7 @@ class MicrophoneClient:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Client for laptop microphone - sends audio via WebSocket"
+        description="Client for laptop microphone - sends raw audio data via WebSocket (no processing)"
     )
     parser.add_argument(
         "--url", "-u",
