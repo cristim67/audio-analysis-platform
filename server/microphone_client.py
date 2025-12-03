@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""
-Python client that captures audio from laptop microphone
-and sends data via WebSocket to server.
-
-Server forwards data to Arduino via WebSocket.
-
-Usage: python microphone_client.py --url wss://branky-latashia-unintendedly.ngrok-free.dev/ws-microphone
-"""
-
 import argparse
 import asyncio
 import json
@@ -40,26 +31,36 @@ class MicrophoneClient:
         self.stream = None
         
     def calculate_volume(self, audio_data: np.ndarray) -> tuple:
-        """Calculate volume from audio data"""
+        """Calculate volume from audio data using peak-to-peak (similar to Arduino)"""
         # Convert to numpy array if not already
         if not isinstance(audio_data, np.ndarray):
             audio_data = np.frombuffer(audio_data, dtype=np.int16)
+        
+        # Handle empty or invalid audio data
+        if len(audio_data) == 0:
+            return 0, 0
         
         # Calculate peak-to-peak amplitude
         signal_max = int(np.max(audio_data))
         signal_min = int(np.min(audio_data))
         peak_to_peak = signal_max - signal_min
         
-        # Calculate RMS for more accurate measurement
-        rms = np.sqrt(np.mean(audio_data**2))
-        
-        # Normalize RMS to 0-100 (16-bit audio: max RMS ~32768)
-        volume = int((rms / 32768.0) * 100)
-        volume = min(100, max(0, volume))
-        
-        # Minimum threshold to eliminate background noise
-        if peak_to_peak < 100:  # Adjusted for 16-bit audio
-            volume = 0
+        # Use peak-to-peak for volume calculation (similar to Arduino)
+        # Arduino maps 0-200 to 0-100 for 10-bit ADC (0-1024 range)
+        # For 16-bit audio (0-65536 range), we'll use a higher threshold for better distribution
+        volume = 0
+        if peak_to_peak > 0:
+            # Map peak-to-peak from 0-6000 to 0-100
+            # This prevents saturation and gives better volume distribution
+            # Adjust based on your microphone sensitivity
+            volume = int((peak_to_peak / 6000.0) * 100)
+            volume = min(100, max(0, volume))
+            
+            # Minimum threshold to eliminate background noise
+            # Similar to Arduino: if amplitude < 3, set volume to 0
+            # For 16-bit audio, threshold of ~100 corresponds to Arduino's threshold of 3
+            if peak_to_peak < 100:
+                volume = 0
         
         return volume, peak_to_peak
     
