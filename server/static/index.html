@@ -306,10 +306,9 @@
         let dataHistory = [];
         const maxHistoryRows = 20;
         let waveformData = [];
-        const maxWaveformPoints = 100;
+        const maxWaveformPoints = 50; // Show last 50 data points
         let canvas, ctx;
-        let animationFrameId = null;
-        let needsRedraw = false;
+        let messageCount = 0; // Debug counter
 
         // Initialize canvas
         function initCanvas() {
@@ -327,57 +326,95 @@
         }
 
         function drawWaveform() {
-            if (!ctx || waveformData.length === 0) return;
+            if (!ctx) return;
 
-            // Use requestAnimationFrame for smooth rendering
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear canvas
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw horizontal grid lines
+            ctx.strokeStyle = '#002200';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = (height / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
             }
 
-            animationFrameId = requestAnimationFrame(() => {
-                const width = canvas.width;
-                const height = canvas.height;
-                const centerY = height / 2;
+            // Draw labels
+            ctx.fillStyle = '#004400';
+            ctx.font = '10px Courier New';
+            ctx.fillText('100%', 5, 15);
+            ctx.fillText('50%', 5, height / 2 + 4);
+            ctx.fillText('0%', 5, height - 5);
 
-                // Clear canvas
-                ctx.fillStyle = '#000000';
-                ctx.fillRect(0, 0, width, height);
+            if (waveformData.length === 0) {
+                ctx.fillStyle = '#003300';
+                ctx.font = '14px Courier New';
+                ctx.fillText('Waiting for data...', width / 2 - 70, height / 2);
+                return;
+            }
 
-                // Draw grid (center line)
-                ctx.strokeStyle = '#003300';
-                ctx.lineWidth = 1;
+            // Draw filled area under waveform
+            if (waveformData.length > 1) {
+                const pointWidth = width / maxWaveformPoints;
+                const startX = width - (waveformData.length * pointWidth);
+
+                // Fill gradient
+                const gradient = ctx.createLinearGradient(0, 0, 0, height);
+                gradient.addColorStop(0, 'rgba(0, 255, 0, 0.3)');
+                gradient.addColorStop(1, 'rgba(0, 255, 0, 0.05)');
+
+                ctx.fillStyle = gradient;
                 ctx.beginPath();
-                ctx.moveTo(0, centerY);
-                ctx.lineTo(width, centerY);
+                ctx.moveTo(startX, height);
+
+                waveformData.forEach((value, index) => {
+                    const x = startX + (index * pointWidth);
+                    const y = height - (value / 100) * height;
+                    ctx.lineTo(x, y);
+                });
+
+                ctx.lineTo(startX + ((waveformData.length - 1) * pointWidth), height);
+                ctx.closePath();
+                ctx.fill();
+
+                // Draw line
+                ctx.strokeStyle = '#00ff00';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#00ff00';
+                ctx.shadowBlur = 5;
+                ctx.beginPath();
+
+                waveformData.forEach((value, index) => {
+                    const x = startX + (index * pointWidth);
+                    const y = height - (value / 100) * height;
+
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+
                 ctx.stroke();
+                ctx.shadowBlur = 0;
 
-                // Draw waveform
-                if (waveformData.length > 1) {
-                    ctx.strokeStyle = '#00ff00';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
+                // Draw current value indicator
+                const lastValue = waveformData[waveformData.length - 1];
+                const lastX = startX + ((waveformData.length - 1) * pointWidth);
+                const lastY = height - (lastValue / 100) * height;
 
-                    const pointWidth = width / (waveformData.length - 1);
-                    waveformData.forEach((value, index) => {
-                        const x = index * pointWidth;
-                        // Normalize volume (0-100) to canvas height
-                        // Map 0-100 to bottom-top of canvas (with padding)
-                        const padding = 10;
-                        const usableHeight = height - (padding * 2);
-                        const normalized = value / 100; // 0 to 1
-                        const y = height - padding - (normalized * usableHeight);
-
-                        if (index === 0) {
-                            ctx.moveTo(x, y);
-                        } else {
-                            ctx.lineTo(x, y);
-                        }
-                    });
-
-                    ctx.stroke();
-                }
-                needsRedraw = false;
-            });
+                ctx.fillStyle = '#00ff00';
+                ctx.beginPath();
+                ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
 
         function connectWebSocket() {
@@ -387,22 +424,36 @@
             ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
-                console.log('✅ Conectat la WebSocket');
+                console.log('✅ Conectat la WebSocket dashboard');
+                console.log('🔗 URL:', wsUrl);
                 updateStatus(true);
                 updateRecording(true);
+                messageCount = 0;
             };
 
             ws.onmessage = (event) => {
                 const message = JSON.parse(event.data);
+                messageCount++;
+
+                // Debug: log messages with data
+                if (message.source && message.volume !== undefined) {
+                    console.log(`📨 #${messageCount} [${message.source}] vol=${message.volume} peak=${message.peakToPeak}`);
+                }
 
                 if (message.type === 'initial_data') {
-                    // Filter only Arduino data
-                    message.data
-                        .filter(data => data.source === 'arduino' || data.source === 'microphone')
-                        .forEach(data => processData(data));
+                    console.log('📋 Initial data received:', message.data?.length || 0, 'items');
+                    // Filter only Arduino data (has volume)
+                    if (message.data) {
+                        message.data
+                            .filter(data => data.source === 'arduino' && data.volume !== undefined)
+                            .forEach(data => processData(data));
+                    }
+                } else if (message.type === 'heartbeat') {
+                    // Ignore heartbeats silently
+                    return;
                 } else {
-                    // Only process Arduino data
-                    if (message.source === 'arduino' || message.source === 'microphone') {
+                    // Process Arduino data (has volume and peakToPeak)
+                    if (message.source === 'arduino' && message.volume !== undefined) {
                         processData(message);
                     }
                 }
@@ -424,37 +475,43 @@
         }
 
         function processData(data) {
-            // Only process Arduino data
-            if (data.source !== 'arduino' && data.source !== 'microphone') {
+            // Only process Arduino data with volume
+            if (data.source !== 'arduino' || data.volume === undefined) {
                 return;
             }
 
-            // Update cards
-            if (data.volume !== undefined) {
-                document.getElementById('volume').textContent = data.volume;
-            }
-            if (data.peakToPeak !== undefined) {
-                document.getElementById('peakToPeak').textContent = data.peakToPeak;
-            }
+            console.log('✅ Processing Arduino data: volume=' + data.volume + ' peak=' + data.peakToPeak);
+
+            // Update cards with animation
+            const volumeEl = document.getElementById('volume');
+            const peakEl = document.getElementById('peakToPeak');
+
+            volumeEl.textContent = data.volume;
+            peakEl.textContent = data.peakToPeak;
+
+            // Flash effect on update
+            volumeEl.style.textShadow = '0 0 20px #00ff00';
+            peakEl.style.textShadow = '0 0 20px #ffff00';
+            setTimeout(() => {
+                volumeEl.style.textShadow = 'none';
+                peakEl.style.textShadow = 'none';
+            }, 100);
 
             // Update waveform using volume (0-100 scale)
-            if (data.volume !== undefined && data.volume !== null) {
-                waveformData.push(data.volume);
-                if (waveformData.length > maxWaveformPoints) {
-                    waveformData.shift();
-                }
-                needsRedraw = true;
-                drawWaveform(); // Will use requestAnimationFrame internally
+            waveformData.push(data.volume);
+            if (waveformData.length > maxWaveformPoints) {
+                waveformData.shift();
             }
+            drawWaveform();
 
             // Update timestamp
             const timestamp = new Date(data.timestamp || Date.now());
             document.getElementById('lastUpdate').textContent =
-                timestamp.toLocaleTimeString('ro-RO');
+                timestamp.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-            // Update source (only Arduino)
+            // Update source
             const sourceText = document.getElementById('sourceText');
-            sourceText.textContent = 'Arduino';
+            sourceText.textContent = 'Arduino 🟢';
             sourceText.className = 'source-arduino';
 
             // Add to history
@@ -469,33 +526,31 @@
         function updateTable() {
             const tbody = document.getElementById('dataTableBody');
 
-            // Filter only Arduino data
+            // Filter only Arduino data with volume
             const arduinoData = dataHistory.filter(data =>
-                data.source === 'arduino' || data.source === 'microphone'
+                data.source === 'arduino' && data.volume !== undefined
             );
 
             if (arduinoData.length === 0) {
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="4" style="text-align: center; color: #00aa00;">
-                            Aștept date de la Arduino...
+                            ⏳ Aștept date de la Arduino... (verifică consola browser F12)
                         </td>
                     </tr>
                 `;
                 return;
             }
 
-            tbody.innerHTML = arduinoData.map(data => {
+            tbody.innerHTML = arduinoData.slice(0, 10).map(data => {
                 const timestamp = new Date(data.timestamp || Date.now());
-                const source = 'Arduino';
-                const sourceClass = 'source-arduino';
 
                 return `
                     <tr>
-                        <td class="timestamp">${timestamp.toLocaleString('ro-RO')}</td>
-                        <td>${data.volume !== undefined ? data.volume + ' %' : '-'}</td>
-                        <td>${data.peakToPeak !== undefined ? data.peakToPeak : '-'}</td>
-                        <td><span class="source-badge ${sourceClass}">${source}</span></td>
+                        <td class="timestamp">${timestamp.toLocaleTimeString('ro-RO')}</td>
+                        <td style="color: #00ff00; font-weight: bold;">${data.volume}%</td>
+                        <td style="color: #ffff00;">${data.peakToPeak}</td>
+                        <td><span class="source-badge source-arduino">Arduino</span></td>
                     </tr>
                 `;
             }).join('');

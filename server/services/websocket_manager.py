@@ -50,12 +50,24 @@ async def broadcast_to_dashboards(message: str):
 
 
 async def send_to_arduino(message: str) -> bool:
-    """Send message to Arduino if connected"""
+    """Send text message to Arduino if connected"""
     if arduino_connection is None:
         return False
     
     try:
         await arduino_connection.send_text(message)
+        return True
+    except:
+        return False
+
+
+async def send_binary_to_arduino(data: bytes) -> bool:
+    """Send binary data to Arduino if connected (FAST - no JSON overhead)"""
+    if arduino_connection is None:
+        return False
+    
+    try:
+        await arduino_connection.send_bytes(data)
         return True
     except:
         return False

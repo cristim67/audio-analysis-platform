@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
+"""
+Microphone client - streams audio to server via WebSocket (binary protocol)
+Sends at 250ms intervals for smooth, consistent streaming.
+"""
 import argparse
 import asyncio
-import json
+import queue
+import struct
 import sys
+import threading
 import time
 
 try:
@@ -20,29 +26,51 @@ class MicrophoneClient:
         self.websocket = None
         
         # Audio configuration
-        self.CHUNK = 1024  # Number of samples per chunk
+        self.CHUNK = 1024  # ~23ms of audio at 44100Hz (44100 * 0.023 ≈ 1024)
         self.FORMAT = pyaudio.paInt16
-        self.CHANNELS = 1  # Mono
-        self.RATE = 44100  # Sample rate
-        self.SEND_INTERVAL_MS = 50  # Faster sending for real-time processing
+        self.CHANNELS = 1
+        self.RATE = 44100
+        self.SEND_INTERVAL_MS = 100  # 100ms = 10 packets per second (smooth real-time)
         
         self.audio = pyaudio.PyAudio()
         self.stream = None
-        self.send_count = 0  # Counter for debug output
+        self.send_count = 0
+        self.running = True
+        
+        # Thread-safe queue for audio data
+        self.audio_queue = queue.Queue(maxsize=10)
+    
+    def audio_callback(self, in_data, frame_count, time_info, status):
+        """Callback for audio stream - runs in separate thread"""
+        if self.running:
+            try:
+                # Don't block if queue is full - drop old data
+                if self.audio_queue.full():
+                    try:
+                        self.audio_queue.get_nowait()
+                    except queue.Empty:
+                        pass
+                self.audio_queue.put_nowait(in_data)
+            except queue.Full:
+                pass
+        return (None, pyaudio.paContinue)
     
     def start_audio_stream(self) -> bool:
-        """Start audio stream"""
+        """Start audio stream with callback (non-blocking)"""
         try:
             self.stream = self.audio.open(
                 format=self.FORMAT,
                 channels=self.CHANNELS,
                 rate=self.RATE,
                 input=True,
-                frames_per_buffer=self.CHUNK
+                frames_per_buffer=self.CHUNK,
+                stream_callback=self.audio_callback
             )
-            print("✅ Microphone started")
+            self.stream.start_stream()
+            print("✅ Microphone started (non-blocking callback mode)")
             print(f"   Sample rate: {self.RATE} Hz")
             print(f"   Chunk size: {self.CHUNK} samples")
+            print(f"   Send interval: {self.SEND_INTERVAL_MS}ms")
             return True
         except Exception as e:
             print(f"❌ Error starting microphone: {e}")
@@ -53,144 +81,140 @@ class MicrophoneClient:
         try:
             print(f"🔌 Connecting to {self.websocket_url}...")
             
-            # Headers for ngrok (bypass warning page)
             additional_headers = {}
-            if "ngrok" in self.websocket_url:
+            if "ngrok" in self.websocket_url or "tunnel" in self.websocket_url:
                 additional_headers["ngrok-skip-browser-warning"] = "true"
             
-            self.websocket = await websockets.connect(
-                self.websocket_url,
-                additional_headers=additional_headers
+            self.websocket = await asyncio.wait_for(
+                websockets.connect(
+                    self.websocket_url,
+                    additional_headers=additional_headers,
+                    ping_interval=20,
+                    ping_timeout=10,
+                    close_timeout=5
+                ),
+                timeout=10.0
             )
             print("✅ Connected to server!")
             return True
-        except websockets.exceptions.InvalidURI:
-            print(f"❌ Invalid URL: {self.websocket_url}")
-            print("   Use: ws://localhost:8000/ws-microphone or wss://your-ngrok-url/ws-microphone")
-            return False
-        except websockets.exceptions.InvalidStatus as e:
-            print(f"❌ Server rejected WebSocket connection: {e}")
-            print(f"   HTTP Status: {e.status_code if hasattr(e, 'status_code') else 'Unknown'}")
-            print("   Check:")
-            print("   - If server is running")
-            print("   - If path is correct (/ws-microphone)")
-            print("   - If ngrok is exposing the server correctly")
-            return False
-        except ConnectionRefusedError:
-            print(f"❌ Connection refused")
-            print("   Check if server is running on the correct port")
+        except asyncio.TimeoutError:
+            print(f"❌ Connection timeout after 10s")
             return False
         except Exception as e:
-            print(f"❌ WebSocket connection error: {type(e).__name__}: {e}")
+            print(f"❌ Connection error: {type(e).__name__}: {e}")
             return False
     
-    async def send_audio_data(self, audio_data: bytes, timestamp: int):
-        """Send raw audio data to server via WebSocket (no base64 encoding)"""
+    async def send_audio_data(self, audio_data: bytes, timestamp: int) -> bool:
+        """Send audio data via binary WebSocket protocol"""
         if not self.websocket:
             return False
         
-        # Convert bytes to array of integers (more efficient than base64)
-        audio_array = list(audio_data)
-        
-        # JSON format with raw audio data as array
-        message = {
-            "source": "laptop_microphone",
-            "audio_data": audio_array,  # Direct bytes array, no base64
-            "format": "int16",
-            "channels": self.CHANNELS,
-            "rate": self.RATE,
-            "chunk_size": self.CHUNK,
-            "timestamp": timestamp
-        }
-        
         try:
-            await self.websocket.send(json.dumps(message))
+            # Binary header: 8 bytes
+            header = struct.pack('<BIHB',
+                0x01,                          # Message type
+                timestamp & 0xFFFFFFFF,        # Timestamp
+                self.RATE // 100,              # Rate / 100
+                self.CHUNK // 64               # Chunk / 64
+            )
+            
+            await self.websocket.send(header + audio_data)
             return True
         except Exception as e:
-            print(f"⚠️ Error sending data: {e}")
+            print(f"⚠️ Send error: {e}")
+            try:
+                await self.websocket.close()
+            except:
+                pass
+            self.websocket = None
             return False
     
     async def run(self):
-        """Run main loop"""
-        if not await self.connect_websocket():
-            return
-        
+        """Main loop - smooth streaming at 250ms intervals"""
         if not self.start_audio_stream():
             return
         
-        print("\n🎤 Audio capture started...")
+        print("\n🎤 Audio streaming started...")
+        print(f"📡 Sending every {self.SEND_INTERVAL_MS}ms")
         print("💡 Press Ctrl+C to stop\n")
         
-        last_send_time = 0
-        
         try:
-            while True:
-                current_time_ms = int(time.time() * 1000)
+            while self.running:
+                # Connect if not connected
+                if not self.websocket:
+                    if not await self.connect_websocket():
+                        print("⏳ Retry in 2s...")
+                        await asyncio.sleep(2)
+                        continue
                 
-                # Read audio data
+                # Wait for interval
+                await asyncio.sleep(self.SEND_INTERVAL_MS / 1000.0)
+                
+                # Get latest audio data from queue
+                audio_data = None
                 try:
-                    audio_data = self.stream.read(self.CHUNK, exception_on_overflow=False)
-                except Exception as e:
-                    print(f"⚠️ Error reading audio: {e}")
-                    await asyncio.sleep(0.1)
-                    continue
+                    # Get all available data, use the latest
+                    while not self.audio_queue.empty():
+                        audio_data = self.audio_queue.get_nowait()
+                except queue.Empty:
+                    pass
                 
-                # Send at each interval (no delay - send immediately)
-                if current_time_ms - last_send_time >= self.SEND_INTERVAL_MS:
-                    # Send raw audio data to server (no processing)
-                    await self.send_audio_data(audio_data, current_time_ms)
+                if audio_data:
+                    timestamp = int(time.time() * 1000)
+                    success = await self.send_audio_data(audio_data, timestamp)
                     
-                    # Debug output (less frequent to avoid spam)
-                    self.send_count += 1
-                    if self.send_count % 10 == 0:  # Print every 10th chunk
-                        print(f"📤 Sent audio chunk: {len(audio_data)} bytes (total: {self.send_count})")
-                    
-                    last_send_time = current_time_ms
-                
-                # No delay - read continuously for maximum throughput
+                    if success:
+                        self.send_count += 1
+                        if self.send_count % 4 == 0:  # Log every second (4 * 250ms)
+                            print(f"📤 Sent #{self.send_count}: {len(audio_data)} bytes")
                 
         except KeyboardInterrupt:
-            print("\n\n⏹️  Stopping...")
-        except websockets.exceptions.ConnectionClosed:
-            print("\n❌ WebSocket connection closed")
+            print("\n\n⏹️ Stopping...")
         finally:
+            self.running = False
             await self.cleanup()
     
     async def cleanup(self):
-        """Curăță resursele"""
+        """Cleanup resources"""
+        self.running = False
         if self.stream:
             self.stream.stop_stream()
             self.stream.close()
         if self.audio:
             self.audio.terminate()
         if self.websocket:
-            await self.websocket.close()
-        print("✅ Resurse eliberate")
+            try:
+                await self.websocket.close()
+            except:
+                pass
+        print("✅ Resources released")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Client for laptop microphone - sends raw audio data via WebSocket (no processing)"
+        description="Microphone client - streams audio via WebSocket"
     )
     parser.add_argument(
         "--url", "-u",
         type=str,
         default="wss://tunnel.cristimiloiu.com/ws-microphone",
-        help="WebSocket server URL (default: wss://tunnel.cristimiloiu.com/ws-microphone)"
+        help="WebSocket URL"
+    )
+    parser.add_argument(
+        "--interval", "-i",
+        type=int,
+        default=250,
+        help="Send interval in ms (default: 250)"
     )
     
     args = parser.parse_args()
     
-    # Check URL format
     if not args.url.startswith(('ws://', 'wss://')):
-        print("⚠️  URL must start with ws:// or wss://")
-        print(f"   You provided: {args.url}")
-        print(f"\n   Examples:")
-        print(f"   python microphone_client.py --url ws://localhost:8000/ws-microphone")
-        print(f"   python microphone_client.py --url wss://tunnel.cristimiloiu.com/ws-microphone")
+        print("⚠️ URL must start with ws:// or wss://")
         sys.exit(1)
     
     client = MicrophoneClient(args.url)
+    client.SEND_INTERVAL_MS = args.interval
     
     try:
         asyncio.run(client.run())
@@ -200,4 +224,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
