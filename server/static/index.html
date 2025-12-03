@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IoT Dashboard - Sensor Data</title>
+    <title>🎙️ Audio Analysis Platform</title>
     <style>
         * {
             margin: 0;
@@ -13,8 +13,9 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #00ff00;
             min-height: 100vh;
             padding: 20px;
         }
@@ -24,91 +25,163 @@
             margin: 0 auto;
         }
 
-        h1 {
-            color: white;
-            text-align: center;
-            margin-bottom: 30px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        .header {
+            background: #0a0a0a;
+            border: 2px solid #00ff00;
+            border-radius: 0;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #00ff00;
+        }
+
+        .recording-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .recording-dot {
+            width: 12px;
+            height: 12px;
+            background: #ff0000;
+            border-radius: 50%;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
         }
 
         .status {
-            background: white;
-            border-radius: 10px;
-            padding: 15px;
+            background: #0a0a0a;
+            border: 1px solid #00ff00;
+            border-radius: 0;
+            padding: 10px 15px;
             margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 20px;
+            font-size: 12px;
         }
 
         .status-item {
-            display: inline-block;
-            margin-right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .status-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            margin-right: 8px;
         }
 
         .status-indicator.connected {
-            background: #10b981;
-            box-shadow: 0 0 10px #10b981;
+            background: #00ff00;
+            box-shadow: 0 0 8px #00ff00;
         }
 
         .status-indicator.disconnected {
-            background: #ef4444;
+            background: #ff0000;
+        }
+
+        .waveform-section {
+            background: #0a0a0a;
+            border: 2px solid #00ff00;
+            border-radius: 0;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .waveform-title {
+            font-size: 14px;
+            margin-bottom: 15px;
+            color: #00ff00;
+        }
+
+        .waveform-container {
+            background: #000000;
+            border: 1px solid #00ff00;
+            padding: 20px;
+            height: 150px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .waveform-canvas {
+            width: 100%;
+            height: 100%;
         }
 
         .cards {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
             margin-bottom: 20px;
         }
 
         .card {
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background: #0a0a0a;
+            border: 1px solid #00ff00;
+            border-radius: 0;
+            padding: 15px;
         }
 
         .card-title {
-            font-size: 14px;
-            color: #6b7280;
+            font-size: 11px;
+            color: #00ff00;
             margin-bottom: 10px;
             text-transform: uppercase;
-            letter-spacing: 1px;
         }
 
         .card-value {
-            font-size: 36px;
+            font-size: 32px;
             font-weight: bold;
-            color: #1f2937;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
         }
 
         .card-unit {
-            font-size: 18px;
-            color: #6b7280;
+            font-size: 14px;
+            color: #00aa00;
             margin-left: 5px;
         }
 
-        .temperature {
-            color: #f59e0b;
+        .volume {
+            color: #00ff00;
         }
 
-        .humidity {
-            color: #3b82f6;
+        .peak {
+            color: #ffff00;
         }
 
         .data-table {
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background: #0a0a0a;
+            border: 1px solid #00ff00;
+            border-radius: 0;
+            padding: 15px;
             overflow-x: auto;
+        }
+
+        .data-table h2 {
+            font-size: 14px;
+            margin-bottom: 15px;
+            color: #00ff00;
         }
 
         table {
@@ -118,31 +191,55 @@
 
         th,
         td {
-            padding: 12px;
+            padding: 10px;
             text-align: left;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid #003300;
+            font-size: 12px;
         }
 
         th {
-            background: #f9fafb;
-            font-weight: 600;
-            color: #374151;
+            background: #001100;
+            color: #00ff00;
+            font-weight: bold;
         }
 
         tr:hover {
-            background: #f9fafb;
+            background: #001100;
         }
 
         .timestamp {
-            color: #6b7280;
-            font-size: 12px;
+            color: #00aa00;
+            font-size: 11px;
+        }
+
+        .source-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #003300;
+            border: 1px solid #00ff00;
+            font-size: 10px;
+            margin-left: 8px;
+        }
+
+        .source-arduino {
+            color: #00ffff;
+        }
+
+        .source-laptop {
+            color: #ff00ff;
         }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <h1>🌡️ IoT Sensor Dashboard</h1>
+        <div class="header">
+            <div class="header-title">🎙️ AUDIO ANALYSIS PLATFORM</div>
+            <div class="recording-indicator">
+                <span class="recording-dot" id="recordingDot"></span>
+                <span id="recordingText">🔴 Recording</span>
+            </div>
+        </div>
 
         <div class="status">
             <div class="status-item">
@@ -152,40 +249,51 @@
             <div class="status-item">
                 <strong>Ultima actualizare:</strong> <span id="lastUpdate">-</span>
             </div>
+            <div class="status-item">
+                <strong>Sursă:</strong> <span id="sourceText">-</span>
+            </div>
+        </div>
+
+        <div class="waveform-section">
+            <div class="waveform-title">📊 WAVEFORM (Semnal în timp)</div>
+            <div class="waveform-container">
+                <canvas class="waveform-canvas" id="waveformCanvas"></canvas>
+            </div>
         </div>
 
         <div class="cards">
             <div class="card">
-                <div class="card-title">🌡️ Temperatură</div>
+                <div class="card-title">🔊 Volume</div>
                 <div class="card-value">
-                    <span class="temperature" id="temperature">-</span>
-                    <span class="card-unit">°C</span>
+                    <span class="volume" id="volume">-</span>
+                    <span class="card-unit">%</span>
                 </div>
             </div>
 
             <div class="card">
-                <div class="card-title">💧 Umiditate</div>
+                <div class="card-title">📈 Peak to Peak</div>
                 <div class="card-value">
-                    <span class="humidity" id="humidity">-</span>
-                    <span class="card-unit">%</span>
+                    <span class="peak" id="peakToPeak">-</span>
+                    <span class="card-unit">ampl</span>
                 </div>
             </div>
         </div>
 
         <div class="data-table">
-            <h2 style="margin-bottom: 15px;">Istoric recent</h2>
+            <h2>📋 Istoric recent</h2>
             <table>
                 <thead>
                     <tr>
                         <th>Timp</th>
-                        <th>Temperatură</th>
-                        <th>Umiditate</th>
+                        <th>Volume</th>
+                        <th>Peak to Peak</th>
+                        <th>Sursă</th>
                     </tr>
                 </thead>
                 <tbody id="dataTableBody">
                     <tr>
-                        <td colspan="3" style="text-align: center; color: #6b7280;">
-                            Aștept date...
+                        <td colspan="4" style="text-align: center; color: #00aa00;">
+                            Aștept date audio...
                         </td>
                     </tr>
                 </tbody>
@@ -196,10 +304,68 @@
     <script>
         let ws = null;
         let dataHistory = [];
-        const maxHistoryRows = 10;  // Maxim 10 valori în istoric
+        const maxHistoryRows = 20;
+        let waveformData = [];
+        const maxWaveformPoints = 100;
+        let canvas, ctx;
+
+        // Initialize canvas
+        function initCanvas() {
+            canvas = document.getElementById('waveformCanvas');
+            ctx = canvas.getContext('2d');
+
+            function resizeCanvas() {
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+                drawWaveform();
+            }
+
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+        }
+
+        function drawWaveform() {
+            if (!ctx || waveformData.length === 0) return;
+
+            const width = canvas.width;
+            const height = canvas.height;
+            const centerY = height / 2;
+
+            // Clear canvas
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw grid
+            ctx.strokeStyle = '#003300';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(width, centerY);
+            ctx.stroke();
+
+            // Draw waveform
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            const pointWidth = width / waveformData.length;
+            waveformData.forEach((value, index) => {
+                const x = index * pointWidth;
+                // Normalize value to -1 to 1 range, then scale to canvas
+                const normalized = (value / 100) * 2 - 1; // Convert 0-100 to -1 to 1
+                const y = centerY + (normalized * (height / 2 - 10));
+
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+
+            ctx.stroke();
+        }
 
         function connectWebSocket() {
-            // Detectează protocolul (ws sau wss)
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws-dashboard`;
 
@@ -208,16 +374,15 @@
             ws.onopen = () => {
                 console.log('✅ Conectat la WebSocket');
                 updateStatus(true);
+                updateRecording(true);
             };
 
             ws.onmessage = (event) => {
                 const message = JSON.parse(event.data);
 
                 if (message.type === 'initial_data') {
-                    // Primește datele inițiale
                     message.data.forEach(data => processData(data));
                 } else {
-                    // Primește update în timp real
                     processData(message);
                 }
             };
@@ -225,31 +390,53 @@
             ws.onerror = (error) => {
                 console.error('❌ Eroare WebSocket:', error);
                 updateStatus(false);
+                updateRecording(false);
             };
 
             ws.onclose = () => {
                 console.log('❌ Deconectat de la WebSocket');
                 updateStatus(false);
-                // Reîncearcă conexiunea după 3 secunde
+                updateRecording(false);
                 setTimeout(connectWebSocket, 3000);
             };
         }
 
         function processData(data) {
-            // Actualizează cardurile
-            if (data.temperature !== undefined) {
-                document.getElementById('temperature').textContent = data.temperature;
+            // Update cards
+            if (data.volume !== undefined) {
+                document.getElementById('volume').textContent = data.volume;
             }
-            if (data.humidity !== undefined) {
-                document.getElementById('humidity').textContent = data.humidity;
+            if (data.peakToPeak !== undefined) {
+                document.getElementById('peakToPeak').textContent = data.peakToPeak;
             }
 
-            // Actualizează timestamp
+            // Update waveform
+            if (data.volume !== undefined) {
+                waveformData.push(data.volume);
+                if (waveformData.length > maxWaveformPoints) {
+                    waveformData.shift();
+                }
+                drawWaveform();
+            }
+
+            // Update timestamp
             const timestamp = new Date(data.timestamp || Date.now());
             document.getElementById('lastUpdate').textContent =
                 timestamp.toLocaleTimeString('ro-RO');
 
-            // Adaugă în istoric
+            // Update source
+            const sourceText = document.getElementById('sourceText');
+            if (data.source === 'laptop_microphone') {
+                sourceText.textContent = 'Laptop Microphone';
+                sourceText.className = 'source-laptop';
+            } else if (data.source === 'microphone' || data.source === 'arduino') {
+                sourceText.textContent = 'Arduino Microphone';
+                sourceText.className = 'source-arduino';
+            } else {
+                sourceText.textContent = data.source || 'Unknown';
+            }
+
+            // Add to history
             dataHistory.unshift(data);
             if (dataHistory.length > maxHistoryRows) {
                 dataHistory.pop();
@@ -264,8 +451,8 @@
             if (dataHistory.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="3" style="text-align: center; color: #6b7280;">
-                            Aștept date...
+                        <td colspan="4" style="text-align: center; color: #00aa00;">
+                            Aștept date audio...
                         </td>
                     </tr>
                 `;
@@ -274,11 +461,16 @@
 
             tbody.innerHTML = dataHistory.map(data => {
                 const timestamp = new Date(data.timestamp || Date.now());
+                const source = data.source === 'laptop_microphone' ? 'Laptop' :
+                    (data.source === 'microphone' || data.source === 'arduino' ? 'Arduino' : data.source || 'Unknown');
+                const sourceClass = data.source === 'laptop_microphone' ? 'source-laptop' : 'source-arduino';
+
                 return `
                     <tr>
                         <td class="timestamp">${timestamp.toLocaleString('ro-RO')}</td>
-                        <td>${data.temperature !== undefined ? data.temperature + ' °C' : '-'}</td>
-                        <td>${data.humidity !== undefined ? data.humidity + ' %' : '-'}</td>
+                        <td>${data.volume !== undefined ? data.volume + ' %' : '-'}</td>
+                        <td>${data.peakToPeak !== undefined ? data.peakToPeak : '-'}</td>
+                        <td><span class="source-badge ${sourceClass}">${source}</span></td>
                     </tr>
                 `;
             }).join('');
@@ -297,8 +489,24 @@
             }
         }
 
-        // Conectează la WebSocket când se încarcă pagina
-        connectWebSocket();
+        function updateRecording(recording) {
+            const dot = document.getElementById('recordingDot');
+            const text = document.getElementById('recordingText');
+
+            if (recording) {
+                dot.style.display = 'inline-block';
+                text.textContent = '🔴 Recording';
+            } else {
+                dot.style.display = 'none';
+                text.textContent = '⚫ Stopped';
+            }
+        }
+
+        // Initialize canvas and connect when page loads
+        window.addEventListener('load', () => {
+            initCanvas();
+            connectWebSocket();
+        });
     </script>
 </body>
 

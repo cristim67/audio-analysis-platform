@@ -16,6 +16,8 @@ from services.websocket_manager import (
     broadcast_to_dashboards,
     get_connection_count,
     remove_connection,
+    send_to_arduino,
+    set_arduino_connection,
 )
 
 router = APIRouter()
@@ -32,6 +34,7 @@ async def websocket_arduino(websocket: WebSocket):
     
     try:
         await websocket.accept()
+        set_arduino_connection(websocket)
         logger.info(f"Arduino CONNECTED from {client_host}")
         await websocket.send_text('{"status":"connected","message":"Welcome!"}')
         
@@ -69,15 +72,63 @@ async def websocket_arduino(websocket: WebSocket):
                 
         finally:
             flush_task.cancel()
+            set_arduino_connection(None)
             # Save remaining buffer (non-blocking)
             from services.storage import sqlite_buffer
             if sqlite_buffer:
                 asyncio.create_task(flush_sqlite_buffer())
             
     except WebSocketDisconnect:
-        logger.info(f"Arduino DISCONNECTED from {client_host}")
+        logger.info(f"Arduino DISCONNECTED from {client_host} (normal disconnect)")
+        set_arduino_connection(None)
     except Exception as e:
         logger.error(f"WebSocket ERROR from {client_host}: {type(e).__name__}: {e}", exc_info=True)
+
+
+@router.websocket("/ws-microphone")
+async def websocket_microphone(websocket: WebSocket):
+    """
+    WebSocket endpoint for laptop microphone client.
+    Receives audio data from laptop and forwards it to Arduino.
+    """
+    client_host = websocket.client.host if websocket.client else "Unknown"
+    logger.info(f"Microphone client connection attempt from {client_host}")
+    
+    try:
+        await websocket.accept()
+        logger.info(f"Microphone client CONNECTED from {client_host}")
+        
+        try:
+            while True:
+                data = await websocket.receive_text()
+                logger.info(f"Received from microphone [{client_host}]: {data}")
+                
+                try:
+                    data_json = json.loads(data)
+                    data_json["timestamp"] = datetime.now().isoformat()
+                    data_json["client"] = client_host
+                    data_json["source"] = "laptop_microphone"
+                    
+                    # Add to storage (memory + buffer)
+                    add_sensor_data(data_json)
+                    
+                    # Broadcast to all dashboards
+                    await broadcast_to_dashboards(json.dumps(data_json))
+                    
+                    # Forward to Arduino if connected
+                    if await send_to_arduino(data):
+                        logger.debug(f"Forwarded audio data to Arduino")
+                    
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid JSON message from microphone [{client_host}]: {data}")
+                
+        except WebSocketDisconnect:
+            logger.info(f"Microphone client DISCONNECTED from {client_host}")
+            
+    except WebSocketDisconnect:
+        logger.info(f"Microphone client DISCONNECTED from {client_host}")
+    except Exception as e:
+        logger.error(f"Microphone client ERROR from {client_host}: {type(e).__name__}: {e}", exc_info=True)
 
 
 @router.websocket("/ws-dashboard")
