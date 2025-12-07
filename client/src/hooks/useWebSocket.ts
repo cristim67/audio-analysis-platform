@@ -84,6 +84,7 @@ export function useWebSocket() {
         isConnectingRef.current = false;
         setIsConnected(true);
         reconnectAttemptsRef.current = 0; // Reset attempts on successful connection
+        console.log("✅ WebSocket connected to dashboard endpoint");
       };
 
       ws.onmessage = (event) => {
@@ -91,16 +92,24 @@ export function useWebSocket() {
           const message = JSON.parse(event.data);
 
           if (message.type === "initial_data" && message.data) {
-            // Process initial data batch
-            const esp32Data = message.data
+            // Process initial data batch - get the most recent valid data
+            const validData = message.data
               .filter((d: any) => isValidAudioData(d))
-              .map((d: AudioData) => processAudioData(d))
-              .pop();
-            if (esp32Data) setLastData(esp32Data);
+              .map((d: AudioData) => processAudioData(d));
+
+            if (validData.length > 0) {
+              // Use the most recent data point
+              const latestData = validData[validData.length - 1];
+              setLastData(latestData);
+              console.log(
+                `📥 Received ${validData.length} initial data points`
+              );
+            }
           } else if (message.type === "esp32_status") {
             // Update ESP32 connection status
             setIsESP32Connected(message.connected === true);
           } else if (message.type === "heartbeat") {
+            // Ignore heartbeat messages
             return;
           } else if (isValidAudioData(message)) {
             // Process and normalize incoming audio data
@@ -164,17 +173,33 @@ export function useWebSocket() {
   }, []);
 
   useEffect(() => {
+    // Reset state on mount/remount (e.g., page refresh)
+    setIsConnected(false);
+    setIsESP32Connected(false);
+    setLastData(null);
+
     shouldReconnectRef.current = true;
     connectWebSocket();
 
     return () => {
+      // Cleanup on unmount
       shouldReconnectRef.current = false;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
       if (wsRef.current) {
-        wsRef.current.close();
+        try {
+          wsRef.current.onclose = null; // Prevent reconnection attempts
+          wsRef.current.onerror = null;
+          wsRef.current.onmessage = null;
+          wsRef.current.close();
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+        wsRef.current = null;
       }
+      isConnectingRef.current = false;
     };
   }, [connectWebSocket]);
 

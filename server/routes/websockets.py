@@ -171,14 +171,20 @@ async def websocket_dashboard(websocket: WebSocket):
         add_connection(websocket)
         logger.info(f"📊 Dashboard CONNECTED from {client_host} (Total: {get_connection_count()})")
         
-        # Send latest available data immediately
+        # Send latest available data immediately on connection
         latest = get_latest_data(DASHBOARD_INITIAL_DATA_COUNT)
         if latest:
             initial_data = {
                 "type": "initial_data",
                 "data": latest
             }
-            await websocket.send_text(json.dumps(initial_data))
+            try:
+                await websocket.send_text(json.dumps(initial_data))
+                logger.debug(f"📤 Sent {len(latest)} initial data points to dashboard")
+            except Exception as e:
+                logger.warning(f"Failed to send initial data: {e}")
+        else:
+            logger.debug("No initial data available to send")
         
         # Send ESP32 connection status immediately
         esp32_status = {
@@ -186,7 +192,10 @@ async def websocket_dashboard(websocket: WebSocket):
             "connected": is_esp32_connected(),
             "timestamp": datetime.now().isoformat()
         }
-        await websocket.send_text(json.dumps(esp32_status))
+        try:
+            await websocket.send_text(json.dumps(esp32_status))
+        except Exception as e:
+            logger.warning(f"Failed to send ESP32 status: {e}")
         
         # Wait for messages from dashboard and forward to ESP32
         while True:
