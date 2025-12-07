@@ -8,7 +8,7 @@ Real-time audio analysis platform using ESP32, FastAPI, and React. The system ca
 ┌─────────────────────────────────────────────────────────────────┐
 │                         ESP32 Device                            │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │  MAX4466 Microphone → ADC → FFT Analysis → WebSocket     │   │
+│  │  Microphone → ADC → FFT Analysis → WebSocket             │   │
 │  │  - Sample Rate: 16kHz                                    │   │
 │  │  - FFT Samples: 128                                      │   │
 │  │  - Frequency Bands: 9 (0-8kHz)                           │   │
@@ -53,12 +53,15 @@ Real-time audio analysis platform using ESP32, FastAPI, and React. The system ca
 ## 📦 Components
 
 ### ESP32 Firmware (`arduino/microphone_websocket.ino`)
-- **Hardware**: ESP32 + MAX4466 Microphone
+- **Hardware Setup**: ESP32 + Pre-Amplifier + Electret Microphone
+
+![Hardware Setup](https://github.com/cristimiloiu/psad-project/blob/main/docs/images/hardware-setup.png)
+
 - **Features**:
   - Audio capture at 16kHz
   - FFT analysis with 9 frequency bands
   - Real-time filtering (Low-Pass, High-Pass, Band-Pass)
-  - SNR calculation for RAW and FILTERED signals
+  - Signal quality metrics: SNR, MSE, and PSNR calculations
   - Noise gate and automatic calibration
   - WebSocket communication with backend
 
@@ -77,9 +80,11 @@ Real-time audio analysis platform using ESP32, FastAPI, and React. The system ca
 - **Features**:
   - Real-time visualizations (waveform, spectrogram)
   - Audio filter controls (cutoff frequencies, voice boost)
-  - Signal quality metrics (SNR)
+  - Signal quality metrics (SNR, MSE, PSNR)
   - Measurement log
   - Connection status (Dashboard & ESP32)
+
+![Frontend Dashboard](https://github.com/cristimiloiu/psad-project/blob/main/docs/images/frontend-dashboard.png)
 
 ## 🚀 Running with Docker
 
@@ -159,7 +164,19 @@ npm run dev
 - `bandsFiltered`: Array with 9 FFT bands (FILTERED)
 - `snrRaw`: Signal-to-Noise Ratio RAW (dB)
 - `snrFiltered`: Signal-to-Noise Ratio FILTERED (dB)
+- `mse`: Mean Squared Error between RAW and FILTERED bands (lower is better)
+- `psnr`: Peak Signal-to-Noise Ratio (dB, higher is better)
 - `min`, `max`, `avg`: ADC values
+
+### Signal Quality Metrics
+- **SNR (Signal-to-Noise Ratio)**: Measures signal quality by comparing signal energy to noise floor
+  - RAW SNR: Quality of unfiltered signal
+  - FILTERED SNR: Quality after filtering
+- **MSE (Mean Squared Error)**: Average squared difference between RAW and FILTERED frequency bands
+  - Lower values indicate better preservation of original signal characteristics
+- **PSNR (Peak Signal-to-Noise Ratio)**: Logarithmic measure of signal quality
+  - Higher values (typically >30 dB) indicate better signal quality
+  - Formula: PSNR = 20 × log₁₀(MAX_VALUE / √MSE)
 
 ### Available Filters
 - **Low-Pass**: Removes frequencies above cutoff

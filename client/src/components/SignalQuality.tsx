@@ -3,6 +3,8 @@ import { TrendingUp } from "lucide-react";
 interface SignalQualityProps {
   snrRaw?: number;
   snrFiltered?: number;
+  mse?: number;
+  psnr?: number;
 }
 
 function getSNRStatus(snr: number): {
@@ -46,11 +48,19 @@ function getSNRBarWidth(snr: number): number {
   return Math.max(0, Math.min(100, normalized));
 }
 
-export function SignalQuality({ snrRaw, snrFiltered }: SignalQualityProps) {
+export function SignalQuality({
+  snrRaw,
+  snrFiltered,
+  mse,
+  psnr,
+}: SignalQualityProps) {
   const rawSNR = snrRaw ?? 0;
   const filteredSNR = snrFiltered ?? 0;
   const improvement = filteredSNR - rawSNR;
   const improvementRatio = rawSNR > 0 ? filteredSNR / rawSNR : 0;
+
+  const mseValue = mse ?? 0;
+  const psnrValue = psnr ?? 0;
 
   const rawStatus = getSNRStatus(rawSNR);
   const filteredStatus = getSNRStatus(filteredSNR);
@@ -125,6 +135,34 @@ export function SignalQuality({ snrRaw, snrFiltered }: SignalQualityProps) {
             />
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="h-full w-full bg-slate-800/30" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* MSE & PSNR METRICS */}
+      <div className="pt-4 border-t border-slate-700/50">
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-300">MSE</span>
+              <span className="text-sm font-bold text-cyan-300">
+                {mseValue.toFixed(2)}
+              </span>
+            </div>
+            <div className="text-xs text-slate-400">
+              Mean Squared Error (lower is better)
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-300">PSNR</span>
+              <span className="text-sm font-bold text-purple-300">
+                {psnrValue.toFixed(2)} dB
+              </span>
+            </div>
+            <div className="text-xs text-slate-400">
+              Peak Signal-to-Noise Ratio (higher is better)
             </div>
           </div>
         </div>

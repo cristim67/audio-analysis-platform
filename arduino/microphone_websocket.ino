@@ -742,6 +742,33 @@ void loop()
         }
     }
 
+    // ========== MSE & PSNR CALCULATION ==========
+    // Calculate MSE (Mean Squared Error) between RAW and FILTERED bands
+    float mse = 0.0f;
+    float psnr = 0.0f;
+
+    // Calculate MSE: mean of squared differences between RAW and FILTERED bands
+    float sumSquaredError = 0.0f;
+    for (int i = 0; i < NUM_BANDS; i++)
+    {
+        float diff = bands[i] - bandsFiltered[i];
+        sumSquaredError += diff * diff;
+    }
+    mse = sumSquaredError / NUM_BANDS;
+
+    // Calculate PSNR: Peak Signal-to-Noise Ratio
+    // PSNR = 20 * log10(MAX_VALUE / sqrt(MSE))
+    // MAX_VALUE = 100 (maximum band value)
+    if (mse > 0.0f)
+    {
+        float maxValue = 100.0f;
+        float sqrtMse = sqrtf(mse);
+        if (sqrtMse > 0.0f)
+        {
+            psnr = 20.0f * log10f(maxValue / sqrtMse);
+        }
+    }
+
     // ========== RAW VOLUME ==========
     int volumeRaw = (int)((float)amplitude * 100.0f / AMP_REF);
     if (volumeRaw > 100)
@@ -764,7 +791,7 @@ void loop()
     if (isConnected && webSocket.isConnected())
     {
         // Larger buffer to avoid overflow
-        char msg[900];
+        char msg[1000];
         char bandsRawStr[150];
         char bandsFilteredStr[150];
 
@@ -810,8 +837,8 @@ void loop()
         }
         else
         {
-            // Message too large - send without SNR if necessary
-            Serial.printf("⚠️ Message too large (%d bytes), sending without SNR\n", msgLen);
+            // Message too large - send without SNR/MSE/PSNR if necessary
+            Serial.printf("⚠️ Message too large (%d bytes), sending without SNR/MSE/PSNR\n", msgLen);
             msgLen = snprintf(msg, sizeof(msg),
                               "{\"source\":\"esp32\","
                               "\"type\":\"microphone_data\","

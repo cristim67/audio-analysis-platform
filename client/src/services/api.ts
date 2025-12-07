@@ -24,6 +24,8 @@ export interface AudioData {
   calibrated?: boolean;
   snrRaw?: number;
   snrFiltered?: number;
+  mse?: number;
+  psnr?: number;
 }
 
 // ============================================================================
