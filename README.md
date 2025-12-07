@@ -264,7 +264,3 @@ VITE_API_URL_FASTAPI=wss://your-backend-url.com
 ## 📄 License
 
 See `LICENSE` for details.
-
-## 👤 Author
-
-Cristi Miloiu
