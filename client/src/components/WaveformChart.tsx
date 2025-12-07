@@ -13,118 +13,145 @@ export function WaveformChart({
   color,
   title,
   label,
-  maxPoints = 100,
+  maxPoints = 60,
 }: WaveformChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationFrameRef = useRef<number>();
+  const lastDataRef = useRef<number[]>([]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-
-    ctx.scale(dpr, dpr);
-
-    const w = rect.width;
-    const h = rect.height;
-    const marginLeft = 50;
-    const marginBottom = 30;
-    const plotW = w - marginLeft - 15;
-    const plotH = h - marginBottom - 15;
-
-    ctx.fillStyle = "#0f172a";
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.fillStyle = "#1e293b";
-    ctx.fillRect(marginLeft, 10, plotW, plotH);
-
-    ctx.font = "11px system-ui, -apple-system, sans-serif";
-    ctx.textAlign = "right";
-    const ySteps = [0, 50, 100];
-
-    ySteps.forEach((val) => {
-      const y = 10 + plotH - (val / 100) * plotH;
-
-      ctx.strokeStyle = "#334155";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([2, 3]);
-      ctx.beginPath();
-      ctx.moveTo(marginLeft, y);
-      ctx.lineTo(marginLeft + plotW, y);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.fillStyle = "#94a3b8";
-      ctx.fillText(val + "%", marginLeft - 8, y + 4);
-    });
-
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "10px system-ui, -apple-system, sans-serif";
-    ctx.fillText("Time (seconds)", marginLeft + plotW / 2, h - 8);
-
-    if (data.length < 2) {
-      ctx.fillStyle = "#64748b";
-      ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(
-        "Awaiting signal data...",
-        marginLeft + plotW / 2,
-        10 + plotH / 2
-      );
+    // Skip dacă datele nu s-au schimbat
+    if (JSON.stringify(data) === JSON.stringify(lastDataRef.current)) {
       return;
     }
+    lastDataRef.current = data;
 
-    const pointWidth = plotW / maxPoints;
-    const startX = marginLeft + plotW - data.length * pointWidth;
+    // Anulează frame-ul anterior dacă există
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
 
-    const gradient = ctx.createLinearGradient(0, 10, 0, 10 + plotH);
-    gradient.addColorStop(0, color + "30");
-    gradient.addColorStop(1, color + "05");
+    // Folosește requestAnimationFrame pentru smooth rendering
+    animationFrameRef.current = requestAnimationFrame(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.moveTo(startX, 10 + plotH);
-    data.forEach((val, i) => {
-      const x = startX + i * pointWidth;
-      const y = 10 + plotH - (val / 100) * plotH;
-      ctx.lineTo(x, y);
+      const ctx = canvas.getContext("2d", { alpha: false });
+      if (!ctx) return;
+
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+
+      ctx.scale(dpr, dpr);
+
+      const w = rect.width;
+      const h = rect.height;
+      const marginLeft = 50;
+      const marginBottom = 30;
+      const plotW = w - marginLeft - 15;
+      const plotH = h - marginBottom - 15;
+
+      // Clear canvas
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(marginLeft, 10, plotW, plotH);
+
+      // Draw grid lines
+      ctx.font = "11px system-ui, -apple-system, sans-serif";
+      ctx.textAlign = "right";
+      const ySteps = [0, 50, 100];
+
+      ySteps.forEach((val) => {
+        const y = 10 + plotH - (val / 100) * plotH;
+
+        ctx.strokeStyle = "#334155";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath();
+        ctx.moveTo(marginLeft, y);
+        ctx.lineTo(marginLeft + plotW, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = "#94a3b8";
+        ctx.fillText(val + "%", marginLeft - 8, y + 4);
+      });
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "10px system-ui, -apple-system, sans-serif";
+      ctx.fillText("Time (seconds)", marginLeft + plotW / 2, h - 8);
+
+      if (data.length < 2) {
+        ctx.fillStyle = "#64748b";
+        ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(
+          "Awaiting signal data...",
+          marginLeft + plotW / 2,
+          10 + plotH / 2
+        );
+        return;
+      }
+
+      const pointWidth = plotW / maxPoints;
+      const startX = marginLeft + plotW - data.length * pointWidth;
+
+      // Draw gradient fill
+      const gradient = ctx.createLinearGradient(0, 10, 0, 10 + plotH);
+      gradient.addColorStop(0, color + "30");
+      gradient.addColorStop(1, color + "05");
+
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.moveTo(startX, 10 + plotH);
+      data.forEach((val, i) => {
+        const x = startX + i * pointWidth;
+        const y = 10 + plotH - (val / 100) * plotH;
+        ctx.lineTo(x, y);
+      });
+      ctx.lineTo(startX + (data.length - 1) * pointWidth, 10 + plotH);
+      ctx.closePath();
+      ctx.fill();
+
+      // Draw line
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      data.forEach((val, i) => {
+        const x = startX + i * pointWidth;
+        const y = 10 + plotH - (val / 100) * plotH;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Draw last point indicator
+      const lastVal = data[data.length - 1];
+      const lastX = startX + (data.length - 1) * pointWidth;
+      const lastY = 10 + plotH - (lastVal / 100) * plotH;
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#f1f5f9";
+      ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
+      ctx.textAlign = "left";
+      const textX = Math.min(lastX + 10, w - 50);
+      ctx.fillText(lastVal.toFixed(0) + "%", textX, lastY + 5);
     });
-    ctx.lineTo(startX + (data.length - 1) * pointWidth, 10 + plotH);
-    ctx.closePath();
-    ctx.fill();
 
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    data.forEach((val, i) => {
-      const x = startX + i * pointWidth;
-      const y = 10 + plotH - (val / 100) * plotH;
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-
-    const lastVal = data[data.length - 1];
-    const lastX = startX + (data.length - 1) * pointWidth;
-    const lastY = 10 + plotH - (lastVal / 100) * plotH;
-
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#f1f5f9";
-    ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
-    ctx.textAlign = "left";
-    const textX = Math.min(lastX + 10, w - 50);
-    ctx.fillText(lastVal.toFixed(0) + "%", textX, lastY + 5);
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
   }, [data, color, maxPoints]);
 
   return (

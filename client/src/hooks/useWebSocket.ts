@@ -13,8 +13,36 @@ export function useWebSocket() {
   const [isESP32Connected, setIsESP32Connected] = useState(false);
   const [lastData, setLastData] = useState<AudioData | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const isConnectingRef = useRef(false);
+  const shouldReconnectRef = useRef(true);
 
   const connectWebSocket = useCallback(() => {
+    // Evită conexiuni multiple simultane
+    if (
+      isConnectingRef.current ||
+      (wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING)
+    ) {
+      return;
+    }
+
+    // Dacă socket-ul este deja deschis, nu reconecta
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    // Închide socket-ul vechi dacă există
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch (e) {
+        // Ignoră erori la închidere
+      }
+    }
+
+    isConnectingRef.current = true;
+
     // Get WebSocket URL - prioritize VITE_API_URL_FASTAPI (for Genezio deployment)
     let wsUrl: string;
 
@@ -49,55 +77,102 @@ export function useWebSocket() {
       wsUrl = `${protocol}//${window.location.host}/ws-dashboard`;
     }
 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    try {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
-    ws.onopen = () => {
-      setIsConnected(true);
-    };
+      ws.onopen = () => {
+        isConnectingRef.current = false;
+        setIsConnected(true);
+        reconnectAttemptsRef.current = 0; // Reset attempts on successful connection
+      };
 
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
 
-        if (message.type === "initial_data" && message.data) {
-          // Process initial data batch
-          const esp32Data = message.data
-            .filter((d: any) => isValidAudioData(d))
-            .map((d: AudioData) => processAudioData(d))
-            .pop();
-          if (esp32Data) setLastData(esp32Data);
-        } else if (message.type === "esp32_status") {
-          // Update ESP32 connection status
-          setIsESP32Connected(message.connected === true);
-        } else if (message.type === "heartbeat") {
-          return;
-        } else if (isValidAudioData(message)) {
-          // Process and normalize incoming audio data
-          const processedData = processAudioData(message);
-          setLastData(processedData);
+          if (message.type === "initial_data" && message.data) {
+            // Process initial data batch
+            const esp32Data = message.data
+              .filter((d: any) => isValidAudioData(d))
+              .map((d: AudioData) => processAudioData(d))
+              .pop();
+            if (esp32Data) setLastData(esp32Data);
+          } else if (message.type === "esp32_status") {
+            // Update ESP32 connection status
+            setIsESP32Connected(message.connected === true);
+          } else if (message.type === "heartbeat") {
+            return;
+          } else if (isValidAudioData(message)) {
+            // Process and normalize incoming audio data
+            const processedData = processAudioData(message);
+            setLastData(processedData);
+          }
+        } catch (error) {
+          console.error("Error parsing WebSocket message:", error);
         }
-      } catch (error) {
-        console.error("Error parsing WebSocket message:", error);
-      }
-    };
+      };
 
-    ws.onerror = () => setIsConnected(false);
+      ws.onerror = (error) => {
+        isConnectingRef.current = false;
+        setIsConnected(false);
+        console.error("WebSocket error:", error);
+      };
 
-    ws.onclose = () => {
-      setIsConnected(false);
-      setTimeout(() => {
-        if (wsRef.current?.readyState === WebSocket.CLOSED) {
+      ws.onclose = (event) => {
+        isConnectingRef.current = false;
+        setIsConnected(false);
+
+        // Nu reconecta dacă a fost o închidere intenționată
+        if (!shouldReconnectRef.current) {
+          return;
+        }
+
+        // Exponential backoff cu minim 100ms pentru reconexiune rapidă
+        const baseDelay = 100;
+        const maxDelay = 5000;
+        const delay = Math.min(
+          baseDelay * Math.pow(2, reconnectAttemptsRef.current),
+          maxDelay
+        );
+
+        reconnectAttemptsRef.current++;
+
+        // Anulează timeout-ul anterior dacă există
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
+
+        reconnectTimeoutRef.current = window.setTimeout(() => {
+          if (
+            shouldReconnectRef.current &&
+            (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED)
+          ) {
+            connectWebSocket();
+          }
+        }, delay);
+      };
+    } catch (error) {
+      isConnectingRef.current = false;
+      console.error("Failed to create WebSocket:", error);
+      // Retry after short delay
+      reconnectTimeoutRef.current = window.setTimeout(() => {
+        if (shouldReconnectRef.current) {
           connectWebSocket();
         }
-      }, 1000);
-    };
+      }, 200);
+    }
   }, []);
 
   useEffect(() => {
+    shouldReconnectRef.current = true;
     connectWebSocket();
 
     return () => {
+      shouldReconnectRef.current = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
       if (wsRef.current) {
         wsRef.current.close();
       }

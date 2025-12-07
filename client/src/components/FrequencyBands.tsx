@@ -1,10 +1,16 @@
+import { memo } from "react";
+
 interface FrequencyBandsProps {
   bands: number[];
   isRaw: boolean;
   title: string;
 }
 
-export function FrequencyBands({ bands, isRaw, title }: FrequencyBandsProps) {
+export const FrequencyBands = memo(function FrequencyBands({
+  bands,
+  isRaw,
+  title,
+}: FrequencyBandsProps) {
   const freqLabels = [
     "250",
     "500",
@@ -59,4 +65,4 @@ export function FrequencyBands({ bands, isRaw, title }: FrequencyBandsProps) {
       </div>
     </div>
   );
-}
+});

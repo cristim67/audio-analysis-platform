@@ -8,54 +8,71 @@ interface SpectrogramChartProps {
 }
 
 const NUM_BANDS = 9;
-const spectrogramWidth = 120;
+const spectrogramWidth = 80;
+
+// Cache pentru culori - reduce calculul repetat
+const colorCache = new Map<string, string>();
 
 function getBandColor(value: number, isRaw: boolean): string {
+  const cacheKey = `${value.toFixed(2)}-${isRaw}`;
+  if (colorCache.has(cacheKey)) {
+    return colorCache.get(cacheKey)!;
+  }
+
   let intensity = Math.min(100, Math.max(0, value)) / 100;
   intensity = Math.pow(intensity, 0.75);
+
+  let color: string;
 
   // Subtle color palette - blue tones for raw, pink tones for filtered
   if (isRaw) {
     if (intensity < 0.25) {
       const t = intensity / 0.25;
-      return `rgb(0, ${Math.floor(t * 60)}, ${Math.floor(t * 120)})`;
+      color = `rgb(0, ${Math.floor(t * 60)}, ${Math.floor(t * 120)})`;
     } else if (intensity < 0.5) {
       const t = (intensity - 0.25) / 0.25;
-      return `rgb(${Math.floor(t * 40)}, ${Math.floor(
+      color = `rgb(${Math.floor(t * 40)}, ${Math.floor(
         60 + t * 80
       )}, ${Math.floor(120 + t * 100)})`;
     } else if (intensity < 0.75) {
       const t = (intensity - 0.5) / 0.25;
-      return `rgb(${Math.floor(40 + t * 100)}, ${Math.floor(
+      color = `rgb(${Math.floor(40 + t * 100)}, ${Math.floor(
         140 + t * 60
       )}, ${Math.floor(220 + t * 35)})`;
     } else {
       const t = (intensity - 0.75) / 0.25;
-      return `rgb(${Math.floor(140 + t * 100)}, ${Math.floor(
+      color = `rgb(${Math.floor(140 + t * 100)}, ${Math.floor(
         200 + t * 55
       )}, 255)`;
     }
   } else {
     if (intensity < 0.25) {
       const t = intensity / 0.25;
-      return `rgb(${Math.floor(t * 80)}, 0, ${Math.floor(t * 60)})`;
+      color = `rgb(${Math.floor(t * 80)}, 0, ${Math.floor(t * 60)})`;
     } else if (intensity < 0.5) {
       const t = (intensity - 0.25) / 0.25;
-      return `rgb(${Math.floor(80 + t * 100)}, ${Math.floor(
+      color = `rgb(${Math.floor(80 + t * 100)}, ${Math.floor(
         t * 40
       )}, ${Math.floor(60 + t * 100)})`;
     } else if (intensity < 0.75) {
       const t = (intensity - 0.5) / 0.25;
-      return `rgb(${Math.floor(180 + t * 50)}, ${Math.floor(
+      color = `rgb(${Math.floor(180 + t * 50)}, ${Math.floor(
         40 + t * 80
       )}, ${Math.floor(160 + t * 60)})`;
     } else {
       const t = (intensity - 0.75) / 0.25;
-      return `rgb(230, ${Math.floor(120 + t * 100)}, ${Math.floor(
+      color = `rgb(230, ${Math.floor(120 + t * 100)}, ${Math.floor(
         220 + t * 35
       )})`;
     }
   }
+
+  // Cache doar primele 1000 culori pentru a nu umple memoria
+  if (colorCache.size < 1000) {
+    colorCache.set(cacheKey, color);
+  }
+
+  return color;
 }
 
 export function SpectrogramChart({
@@ -65,115 +82,148 @@ export function SpectrogramChart({
   label,
 }: SpectrogramChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationFrameRef = useRef<number>();
+  const lastHistoryRef = useRef<number[][]>([]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-
-    ctx.scale(dpr, dpr);
-
-    const w = rect.width;
-    const h = rect.height;
-    const marginLeft = 50;
-    const marginBottom = 5;
-    const marginTop = 15;
-    const plotW = w - marginLeft - 25;
-    const plotH = h - marginBottom - marginTop;
-
-    ctx.fillStyle = "#0f172a";
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.fillStyle = "#1e293b";
-    ctx.fillRect(marginLeft, marginTop, plotW, plotH);
-
-    if (history.length === 0) {
-      ctx.fillStyle = "#64748b";
-      ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(
-        "Awaiting FFT data...",
-        marginLeft + plotW / 2,
-        marginTop + plotH / 2
-      );
+    // Skip dacă istoricul nu s-a schimbat
+    if (
+      history.length === lastHistoryRef.current.length &&
+      history.length > 0 &&
+      JSON.stringify(history[history.length - 1]) ===
+        JSON.stringify(
+          lastHistoryRef.current[lastHistoryRef.current.length - 1]
+        )
+    ) {
       return;
     }
+    lastHistoryRef.current = history;
 
-    const colWidth = plotW / spectrogramWidth;
-    const bandHeight = plotH / NUM_BANDS;
+    // Anulează frame-ul anterior
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
 
-    history.forEach((bands, colIndex) => {
-      const x = marginLeft + colIndex * colWidth;
-      for (let band = 0; band < NUM_BANDS; band++) {
-        const y = marginTop + plotH - (band + 1) * bandHeight;
-        const value = bands[band] || 0;
-        ctx.fillStyle = getBandColor(value, isRaw);
-        ctx.fillRect(x, y, colWidth + 1, bandHeight + 1);
+    // Folosește requestAnimationFrame pentru smooth rendering
+    animationFrameRef.current = requestAnimationFrame(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext("2d", { alpha: false });
+      if (!ctx) return;
+
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+
+      ctx.scale(dpr, dpr);
+
+      const w = rect.width;
+      const h = rect.height;
+      const marginLeft = 50;
+      const marginBottom = 5;
+      const marginTop = 15;
+      const plotW = w - marginLeft - 25;
+      const plotH = h - marginBottom - marginTop;
+
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(marginLeft, marginTop, plotW, plotH);
+
+      if (history.length === 0) {
+        ctx.fillStyle = "#64748b";
+        ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(
+          "Awaiting FFT data...",
+          marginLeft + plotW / 2,
+          marginTop + plotH / 2
+        );
+        return;
       }
+
+      const colWidth = plotW / spectrogramWidth;
+      const bandHeight = plotH / NUM_BANDS;
+
+      // Desenează spectrogram-ul
+      history.forEach((bands, colIndex) => {
+        const x = marginLeft + colIndex * colWidth;
+        for (let band = 0; band < NUM_BANDS; band++) {
+          const y = marginTop + plotH - (band + 1) * bandHeight;
+          const value = bands[band] || 0;
+          ctx.fillStyle = getBandColor(value, isRaw);
+          ctx.fillRect(x, y, colWidth + 1, bandHeight + 1);
+        }
+      });
+
+      // Draw frequency labels
+      ctx.font = "10px system-ui, -apple-system, sans-serif";
+      ctx.textAlign = "right";
+      const freqLabels = [
+        "250",
+        "500",
+        "1k",
+        "1.5k",
+        "2k",
+        "2.5k",
+        "3k",
+        "4k",
+        "8k",
+      ];
+
+      for (let i = 0; i < NUM_BANDS; i += 2) {
+        const y = marginTop + plotH - (i + 0.5) * bandHeight;
+        ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+        ctx.fillRect(0, y - 7, marginLeft - 4, 14);
+        ctx.fillStyle = "#94a3b8";
+        if (freqLabels[i]) {
+          ctx.fillText(freqLabels[i], marginLeft - 6, y + 3);
+        }
+      }
+
+      // Draw current line
+      if (history.length > 0) {
+        const lineX = marginLeft + history.length * colWidth;
+        ctx.strokeStyle = isRaw ? "#60a5fa" : "#f472b6";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(lineX, marginTop);
+        ctx.lineTo(lineX, marginTop + plotH);
+        ctx.stroke();
+      }
+
+      // Draw legend
+      const legendW = 14;
+      const legendX = w - legendW - 6;
+      const legendH = plotH * 0.7;
+      const legendY = marginTop + (plotH - legendH) / 2;
+
+      for (let i = 0; i < legendH; i++) {
+        const intensity = ((legendH - i) / legendH) * 100;
+        ctx.fillStyle = getBandColor(intensity, isRaw);
+        ctx.fillRect(legendX, legendY + i, legendW, 1);
+      }
+
+      ctx.strokeStyle = "#475569";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(legendX, legendY, legendW, legendH);
+
+      ctx.font = "9px system-ui, -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#94a3b8";
+      ctx.fillText("Max", legendX + legendW / 2, legendY - 4);
+      ctx.fillText("Min", legendX + legendW / 2, legendY + legendH + 12);
     });
 
-    ctx.font = "10px system-ui, -apple-system, sans-serif";
-    ctx.textAlign = "right";
-    const freqLabels = [
-      "250",
-      "500",
-      "1k",
-      "1.5k",
-      "2k",
-      "2.5k",
-      "3k",
-      "4k",
-      "8k",
-    ];
-
-    for (let i = 0; i < NUM_BANDS; i += 2) {
-      const y = marginTop + plotH - (i + 0.5) * bandHeight;
-      ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
-      ctx.fillRect(0, y - 7, marginLeft - 4, 14);
-      ctx.fillStyle = "#94a3b8";
-      if (freqLabels[i]) {
-        ctx.fillText(freqLabels[i], marginLeft - 6, y + 3);
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
       }
-    }
-
-    if (history.length > 0) {
-      const lineX = marginLeft + history.length * colWidth;
-      ctx.strokeStyle = isRaw ? "#60a5fa" : "#f472b6";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(lineX, marginTop);
-      ctx.lineTo(lineX, marginTop + plotH);
-      ctx.stroke();
-    }
-
-    const legendW = 14;
-    const legendX = w - legendW - 6;
-    const legendH = plotH * 0.7;
-    const legendY = marginTop + (plotH - legendH) / 2;
-
-    for (let i = 0; i < legendH; i++) {
-      const intensity = ((legendH - i) / legendH) * 100;
-      ctx.fillStyle = getBandColor(intensity, isRaw);
-      ctx.fillRect(legendX, legendY + i, legendW, 1);
-    }
-
-    ctx.strokeStyle = "#475569";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(legendX, legendY, legendW, legendH);
-
-    ctx.font = "9px system-ui, -apple-system, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#94a3b8";
-    ctx.fillText("Max", legendX + legendW / 2, legendY - 4);
-    ctx.fillText("Min", legendX + legendW / 2, legendY + legendH + 12);
+    };
   }, [history, isRaw]);
 
   return (

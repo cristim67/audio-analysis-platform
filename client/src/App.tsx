@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { Radio } from "lucide-react";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { StatusBar } from "./components/StatusBar";
@@ -11,8 +11,8 @@ import { DataTable } from "./components/DataTable";
 import { formatTimestamp } from "./services/api";
 
 const NUM_BANDS = 9;
-const maxPoints = 100;
-const spectrogramWidth = 120;
+const maxPoints = 60;
+const spectrogramWidth = 80;
 
 function App() {
   const { isConnected, isESP32Connected, lastData, sendFilterSettings } =
@@ -38,12 +38,24 @@ function App() {
   const [lastUpdate, setLastUpdate] = useState<string>("-");
   const [syncStatus, setSyncStatus] = useState<string>("Not connected");
 
+  // Throttle agresiv pentru smoothness - actualizează maxim la fiecare 150ms
+  const lastUpdateTime = useRef<number>(0);
+  const UPDATE_THROTTLE_MS = 150;
+
   useEffect(() => {
     if (!lastData) return;
+
+    // Procesează doar dacă a trecut suficient timp
+    const now = Date.now();
+    if (now - lastUpdateTime.current < UPDATE_THROTTLE_MS) {
+      return; // Skip update pentru smoothness
+    }
+    lastUpdateTime.current = now;
 
     const volume = lastData.volume;
     const volumeFiltered = lastData.volumeFiltered ?? lastData.volume;
 
+    // Batch updates pentru performanță
     setWaveformDataRaw((prev) => {
       const newData = [...prev, volume];
       return newData.length > maxPoints ? newData.slice(-maxPoints) : newData;
@@ -74,7 +86,6 @@ function App() {
       });
     }
 
-    // Use formatTimestamp to safely handle timestamp
     const formattedTime = formatTimestamp(
       lastData.timestamp || lastData.server_timestamp
     );
@@ -86,27 +97,33 @@ function App() {
     });
   }, [lastData]);
 
-  const handleApplyFilter = (settings: FilterSettings) => {
-    const success = sendFilterSettings(settings);
-    if (success) {
-      const typeName =
-        settings.filterType.charAt(0).toUpperCase() +
-        settings.filterType.slice(1);
-      setSyncStatus(`${typeName} @ ${settings.cutoffFreq}Hz`);
-      setTimeout(() => setSyncStatus("Ready"), 3000);
-    } else {
-      setSyncStatus("Not connected");
-    }
-  };
+  const handleApplyFilter = useCallback(
+    (settings: FilterSettings) => {
+      const success = sendFilterSettings(settings);
+      if (success) {
+        const typeName =
+          settings.filterType.charAt(0).toUpperCase() +
+          settings.filterType.slice(1);
+        setSyncStatus(`${typeName} @ ${settings.cutoffFreq}Hz`);
+        setTimeout(() => setSyncStatus("Ready"), 3000);
+      } else {
+        setSyncStatus("Not connected");
+      }
+    },
+    [sendFilterSettings]
+  );
 
-  const currentMetrics = {
-    volume: lastData?.volume ?? 0,
-    volumeFiltered: lastData?.volumeFiltered ?? 0,
-    peakToPeak: lastData?.peakToPeak ?? 0,
-    min: lastData?.min ?? 0,
-    max: lastData?.max ?? 0,
-    avg: lastData?.avg ?? 0,
-  };
+  const currentMetrics = useMemo(
+    () => ({
+      volume: lastData?.volume ?? 0,
+      volumeFiltered: lastData?.volumeFiltered ?? 0,
+      peakToPeak: lastData?.peakToPeak ?? 0,
+      min: lastData?.min ?? 0,
+      max: lastData?.max ?? 0,
+      avg: lastData?.avg ?? 0,
+    }),
+    [lastData]
+  );
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">

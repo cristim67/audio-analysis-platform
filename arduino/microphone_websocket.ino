@@ -13,11 +13,6 @@ const char *WS_HOST = "12516655-cf60-4d71-a6cd-3c600fd03052.eu-central-1.cloud.g
 const int WS_PORT = 443;
 const char *WS_PATH = "/ws";
 
-// Uncomment for local development:
-// const char *WS_HOST = "localhost";
-// const int WS_PORT = 8000;
-// const char *WS_PATH = "/ws";
-
 // ============================================================================
 // CONFIGURARE HARDWARE
 // ============================================================================
@@ -47,12 +42,11 @@ const int NUM_BANDS = 9;
 // ============================================================================
 // PARAMETRI AJUSTABILI (primiți de la Frontend)
 // ============================================================================
-int AMP_REF = 500;                 // Amplitudine de referință
-int NOISE_GATE_THRESHOLD = 15;     // Threshold noise gate (%)
-float SMOOTHING_ALPHA = 0.6f;      // Alpha pentru smoothing exponențial
-float VOICE_BOOST = 1.5f;          // Boost pentru benzile de voce
-float BAND_SMOOTH_ALPHA = 0.4f;    // Smoothing pentru benzi FFT
-unsigned long SEND_INTERVAL = 100; // Interval trimitere date (ms)
+int AMP_REF = 650;              // Amplitudine de referință (optimizat pentru voce)
+int NOISE_GATE_THRESHOLD = 12;  // Threshold noise gate (%) - mai mic pentru voce slabă
+float SMOOTHING_ALPHA = 0.5f;   // Alpha pentru smoothing exponențial (mai rapid)
+float VOICE_BOOST = 2.0f;       // Boost pentru benzile de voce (500Hz-2500Hz) - mai mare
+float BAND_SMOOTH_ALPHA = 0.3f; // Smoothing pentru benzi FFT (mai rapid, mai precis)
 
 // ============================================================================
 // BUFFERS ȘI VARIABILE DE STARE
@@ -76,7 +70,10 @@ float bandSmoothing[NUM_BANDS] = {0};
 float noiseFloor[NUM_BANDS] = {0};
 bool calibrated = false;
 int calibrationSamples = 0;
-const int CALIBRATION_COUNT = 20; // 20 samples pentru calibrare (~3 secunde)
+const int CALIBRATION_COUNT = 30; // 30 samples pentru calibrare mai bună (~4-5 secunde)
+
+// Interval fix de trimitere
+const unsigned long SEND_INTERVAL = 350; // 350ms fix - mai lent pentru stabilitate
 
 // WebSocket
 WebSocketsClient webSocket;
@@ -157,17 +154,7 @@ void parseFilterSettings(const char *json)
         }
     }
 
-    // Parse updateRate
-    idx = str.indexOf("\"updateRate\":");
-    if (idx > 0)
-    {
-        int val = str.substring(idx + 13).toInt();
-        if (val >= 50 && val <= 500)
-        {
-            SEND_INTERVAL = val;
-            Serial.printf("🎛️ Update Rate: %dms\n", val);
-        }
-    }
+    // Parse updateRate - ignorat, folosim interval fix de 250ms
 
     Serial.println("✅ Filter settings updated!");
 }
@@ -210,7 +197,6 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
     case WStype_TEXT:
     {
         const char *msg = (const char *)payload;
-        Serial.printf("📩 Received: %.80s...\n", msg);
 
         if (strstr(msg, "filter_settings") != NULL)
         {
@@ -343,10 +329,23 @@ void calculateBands(float *sampleBuffer, int numSamples, float *outputBands)
     float scaleFactor = 100.0f / (AMP_REF * 2.0f);
     for (int i = 0; i < NUM_BANDS; i++)
     {
-        // Scade noise floor dacă e calibrat
+        // Scade noise floor dacă e calibrat - optimizat pentru voce
         if (calibrated && outputBands[i] > noiseFloor[i])
         {
-            outputBands[i] -= noiseFloor[i] * 0.8f; // Scade 80% din noise floor
+            // Mai agresiv pentru benzi joase (unde sunt sinusoidalele)
+            if (i <= 1)
+            {
+                outputBands[i] -= noiseFloor[i] * 1.3f; // Foarte agresiv pentru benzi joase
+            }
+            // Mai conservator pentru benzile vocale (2-5) pentru a păstra vocea
+            else if (i >= 2 && i <= 5)
+            {
+                outputBands[i] -= noiseFloor[i] * 0.7f; // Mai conservator pentru voce
+            }
+            else
+            {
+                outputBands[i] -= noiseFloor[i] * 0.9f; // Standard pentru celelalte
+            }
         }
 
         outputBands[i] *= scaleFactor;
@@ -355,6 +354,13 @@ void calculateBands(float *sampleBuffer, int numSamples, float *outputBands)
         if (i >= 2 && i <= 5)
         {
             outputBands[i] *= VOICE_BOOST; // Boost ajustabil din frontend
+        }
+
+        // Filtrare agresivă pentru benzi joase în liniște (elimină sinusoidalele)
+        // Dar păstrează benzile vocale chiar dacă sunt aproape de noise floor
+        if (calibrated && i <= 1 && outputBands[i] < noiseFloor[i] * 1.8f)
+        {
+            outputBands[i] = 0; // Elimină complet benzi joase sub threshold
         }
 
         if (outputBands[i] > 100)
@@ -379,6 +385,8 @@ void calibrateNoiseFloor(float *currentBands)
             for (int i = 0; i < NUM_BANDS; i++)
             {
                 noiseFloor[i] /= CALIBRATION_COUNT;
+                // Adaugă un buffer de 20% pentru a fi sigur că prindem zgomotul
+                noiseFloor[i] *= 1.2f;
             }
             calibrated = true;
             Serial.println("✅ Calibrare completă!");
@@ -404,13 +412,28 @@ void applyNoiseGateToBands(float *inputBands, float *outputBands)
     for (int i = 0; i < NUM_BANDS; i++)
     {
         int val = (int)inputBands[i];
-        if (val <= NOISE_GATE_THRESHOLD)
+        // Noise gate mai agresiv pentru benzi joase, mai permisiv pentru benzile vocale
+        int threshold;
+        if (i <= 1)
+        {
+            threshold = NOISE_GATE_THRESHOLD + 5; // Mai agresiv pentru benzi joase
+        }
+        else if (i >= 2 && i <= 5)
+        {
+            threshold = NOISE_GATE_THRESHOLD - 2; // Mai permisiv pentru benzile vocale
+        }
+        else
+        {
+            threshold = NOISE_GATE_THRESHOLD; // Standard pentru celelalte
+        }
+
+        if (val <= threshold)
         {
             outputBands[i] = 0;
         }
         else
         {
-            int rescaled = (val - NOISE_GATE_THRESHOLD) * 100 / (100 - NOISE_GATE_THRESHOLD);
+            int rescaled = (val - threshold) * 100 / (100 - threshold);
             if (rescaled > 100)
                 rescaled = 100;
             if (rescaled < 0)
@@ -446,6 +469,7 @@ void setup()
     Serial.printf("FFT Samples: %d\n", FFT_SAMPLES);
     Serial.printf("Frequency Range: 0 - %d Hz\n", SAMPLE_RATE_HZ / 2);
     Serial.printf("Număr benzi: %d\n", NUM_BANDS);
+    Serial.printf("Send Interval: %dms (fix)\n", SEND_INTERVAL);
     Serial.println("⏳ Calibrare zgomot de fond...");
 
     // Conectare WiFi
@@ -584,16 +608,5 @@ void loop()
                  calibrated ? "true" : "false");
 
         webSocket.sendTXT(msg);
-
-        // Log condensat
-        Serial.printf("%s V:%d/%d B:[%d,%d,%d,%d,%d,%d,%d,%d,%d]\n",
-                      calibrated ? "📤" : "⏳",
-                      volumeRaw, volumeFiltered,
-                      (int)bands[0], (int)bands[1], (int)bands[2], (int)bands[3],
-                      (int)bands[4], (int)bands[5], (int)bands[6], (int)bands[7], (int)bands[8]);
-    }
-    else
-    {
-        Serial.printf("🔴 V:%d/%d P2P:%d\n", volumeRaw, volumeFiltered, amplitude);
     }
 }
