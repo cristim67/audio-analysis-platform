@@ -25,7 +25,7 @@ app.add_middleware(
 app.middleware("http")(log_requests)
 
 # Include routers
-app.include_router(api_router)
+app.include_router(api_router, prefix="/api", tags=["api"])
 app.include_router(websocket_router)
 
 
