@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTheme } from "../contexts/ThemeContext";
 
 interface SpectrogramChartProps {
   history: number[][];
@@ -81,6 +82,7 @@ export function SpectrogramChart({
   title,
   label,
 }: SpectrogramChartProps) {
+  const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number>();
   const lastHistoryRef = useRef<number[][]>([]);
@@ -128,14 +130,25 @@ export function SpectrogramChart({
       const plotW = w - marginLeft - 25;
       const plotH = h - marginBottom - marginTop;
 
-      ctx.fillStyle = "#0f172a";
+      // Theme-aware colors
+      const bgColor = theme === "light" ? "#f8fafc" : "#0f172a";
+      const plotBgColor = theme === "light" ? "#ffffff" : "#1e293b";
+      const textColor = theme === "light" ? "#475569" : "#64748b";
+      const labelBgColor =
+        theme === "light"
+          ? "rgba(248, 250, 252, 0.9)"
+          : "rgba(15, 23, 42, 0.9)";
+      const labelTextColor = theme === "light" ? "#475569" : "#94a3b8";
+      const borderColor = theme === "light" ? "#cbd5e1" : "#475569";
+
+      ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, w, h);
 
-      ctx.fillStyle = "#1e293b";
+      ctx.fillStyle = plotBgColor;
       ctx.fillRect(marginLeft, marginTop, plotW, plotH);
 
       if (history.length === 0) {
-        ctx.fillStyle = "#64748b";
+        ctx.fillStyle = textColor;
         ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(
@@ -177,9 +190,9 @@ export function SpectrogramChart({
 
       for (let i = 0; i < NUM_BANDS; i += 2) {
         const y = marginTop + plotH - (i + 0.5) * bandHeight;
-        ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+        ctx.fillStyle = labelBgColor;
         ctx.fillRect(0, y - 7, marginLeft - 4, 14);
-        ctx.fillStyle = "#94a3b8";
+        ctx.fillStyle = labelTextColor;
         if (freqLabels[i]) {
           ctx.fillText(freqLabels[i], marginLeft - 6, y + 3);
         }
@@ -208,13 +221,13 @@ export function SpectrogramChart({
         ctx.fillRect(legendX, legendY + i, legendW, 1);
       }
 
-      ctx.strokeStyle = "#475569";
+      ctx.strokeStyle = borderColor;
       ctx.lineWidth = 1;
       ctx.strokeRect(legendX, legendY, legendW, legendH);
 
       ctx.font = "9px system-ui, -apple-system, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillStyle = "#94a3b8";
+      ctx.fillStyle = labelTextColor;
       ctx.fillText("Max", legendX + legendW / 2, legendY - 4);
       ctx.fillText("Min", legendX + legendW / 2, legendY + legendH + 12);
     });
@@ -224,17 +237,19 @@ export function SpectrogramChart({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [history, isRaw]);
+  }, [history, isRaw, theme]);
 
   return (
-    <div className="bg-slate-800/80 border border-slate-700/50 rounded-lg p-4 shadow-lg">
+    <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/50 rounded-lg p-4 shadow-lg">
       <div className="flex items-center gap-3 mb-3">
-        <h3 className="text-slate-200 font-semibold text-sm">{title}</h3>
+        <h3 className="text-slate-900 dark:text-slate-200 font-semibold text-sm">
+          {title}
+        </h3>
         <span
           className={`text-xs px-2 py-1 rounded font-medium border ${
             label === "RAW"
-              ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
-              : "bg-pink-500/20 text-pink-300 border-pink-500/30"
+              ? "bg-blue-500/20 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 border-blue-500/30 dark:border-blue-500/30"
+              : "bg-pink-500/20 dark:bg-pink-500/20 text-pink-600 dark:text-pink-300 border-pink-500/30 dark:border-pink-500/30"
           }`}
         >
           {label}
@@ -243,7 +258,7 @@ export function SpectrogramChart({
       <div className="relative">
         <canvas
           ref={canvasRef}
-          className="w-full rounded"
+          className="w-full rounded bg-slate-50 dark:bg-slate-900"
           style={{ height: "180px" }}
         />
       </div>

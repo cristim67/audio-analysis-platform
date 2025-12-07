@@ -15,26 +15,30 @@ function getSNRStatus(snr: number): {
   if (snr < 10) {
     return {
       label: "POOR",
-      color: "text-red-300",
-      bgColor: "bg-red-500/20 border-red-500/40",
+      color: "text-red-600 dark:text-red-300",
+      bgColor:
+        "bg-red-500/20 dark:bg-red-500/20 border-red-500/40 dark:border-red-500/40",
     };
   } else if (snr < 20) {
     return {
       label: "FAIR",
-      color: "text-yellow-300",
-      bgColor: "bg-yellow-500/20 border-yellow-500/40",
+      color: "text-yellow-600 dark:text-yellow-300",
+      bgColor:
+        "bg-yellow-500/20 dark:bg-yellow-500/20 border-yellow-500/40 dark:border-yellow-500/40",
     };
   } else if (snr < 30) {
     return {
       label: "GOOD",
-      color: "text-green-300",
-      bgColor: "bg-green-500/20 border-green-500/40",
+      color: "text-green-600 dark:text-green-300",
+      bgColor:
+        "bg-green-500/20 dark:bg-green-500/20 border-green-500/40 dark:border-green-500/40",
     };
   } else {
     return {
       label: "EXCELLENT",
-      color: "text-emerald-300",
-      bgColor: "bg-emerald-500/20 border-emerald-500/40",
+      color: "text-emerald-600 dark:text-emerald-300",
+      bgColor:
+        "bg-emerald-500/20 dark:bg-emerald-500/20 border-emerald-500/40 dark:border-emerald-500/40",
     };
   }
 }
@@ -69,14 +73,16 @@ export function SignalQuality({
   const filteredBarWidth = getSNRBarWidth(filteredSNR);
 
   return (
-    <div className="bg-slate-800/80 border border-slate-700/50 rounded-xl shadow-xl p-6">
+    <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/50 rounded-xl shadow-xl p-6">
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/30">
-          <TrendingUp className="w-5 h-5 text-blue-400" />
+        <div className="p-2 bg-blue-500/10 dark:bg-blue-500/10 rounded-lg border border-blue-500/30 dark:border-blue-500/30">
+          <TrendingUp className="w-5 h-5 text-blue-500 dark:text-blue-400" />
         </div>
         <div>
-          <h3 className="text-lg font-bold text-slate-100">Signal Quality</h3>
-          <p className="text-xs text-slate-400">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+            Signal Quality
+          </h3>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
             Signal-to-Noise Ratio Analysis
           </p>
         </div>
@@ -87,7 +93,7 @@ export function SignalQuality({
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-300">
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                 RAW SIGNAL
               </span>
               <span
@@ -96,17 +102,17 @@ export function SignalQuality({
                 {rawStatus.label}
               </span>
             </div>
-            <span className="text-lg font-bold text-blue-300">
+            <span className="text-lg font-bold text-blue-600 dark:text-blue-300">
               SNR: {rawSNR.toFixed(1)} dB
             </span>
           </div>
-          <div className="relative h-4 bg-slate-700/50 rounded-full overflow-hidden">
+          <div className="relative h-4 bg-slate-200 dark:bg-slate-700/50 rounded-full overflow-hidden">
             <div
               className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-300"
               style={{ width: `${rawBarWidth}%` }}
             />
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-full w-full bg-slate-800/30" />
+              <div className="h-full w-full bg-slate-100/30 dark:bg-slate-800/30" />
             </div>
           </div>
         </div>
@@ -115,7 +121,7 @@ export function SignalQuality({
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-300">
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                 FILTERED SIGNAL
               </span>
               <span
@@ -124,44 +130,48 @@ export function SignalQuality({
                 {filteredStatus.label}
               </span>
             </div>
-            <span className="text-lg font-bold text-pink-300">
+            <span className="text-lg font-bold text-pink-600 dark:text-pink-300">
               SNR: {filteredSNR.toFixed(1)} dB
             </span>
           </div>
-          <div className="relative h-4 bg-slate-700/50 rounded-full overflow-hidden">
+          <div className="relative h-4 bg-slate-200 dark:bg-slate-700/50 rounded-full overflow-hidden">
             <div
               className="absolute inset-y-0 left-0 bg-gradient-to-r from-pink-500 to-pink-400 transition-all duration-300"
               style={{ width: `${filteredBarWidth}%` }}
             />
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-full w-full bg-slate-800/30" />
+              <div className="h-full w-full bg-slate-100/30 dark:bg-slate-800/30" />
             </div>
           </div>
         </div>
       </div>
 
       {/* MSE & PSNR METRICS */}
-      <div className="pt-4 border-t border-slate-700/50">
+      <div className="pt-4 border-t border-slate-300 dark:border-slate-700/50">
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-300">MSE</span>
-              <span className="text-sm font-bold text-cyan-300">
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                MSE
+              </span>
+              <span className="text-sm font-bold text-cyan-600 dark:text-cyan-300">
                 {mseValue.toFixed(2)}
               </span>
             </div>
-            <div className="text-xs text-slate-400">
+            <div className="text-xs text-slate-600 dark:text-slate-400">
               Mean Squared Error (lower is better)
             </div>
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-300">PSNR</span>
-              <span className="text-sm font-bold text-purple-300">
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                PSNR
+              </span>
+              <span className="text-sm font-bold text-purple-600 dark:text-purple-300">
                 {psnrValue.toFixed(2)} dB
               </span>
             </div>
-            <div className="text-xs text-slate-400">
+            <div className="text-xs text-slate-600 dark:text-slate-400">
               Peak Signal-to-Noise Ratio (higher is better)
             </div>
           </div>
@@ -170,14 +180,14 @@ export function SignalQuality({
 
       {/* IMPROVEMENT */}
       {improvement > 0 && (
-        <div className="pt-4 border-t border-slate-700/50">
-          <div className="flex items-center justify-center gap-2 text-slate-300">
+        <div className="pt-4 border-t border-slate-300 dark:border-slate-700/50">
+          <div className="flex items-center justify-center gap-2 text-slate-700 dark:text-slate-300">
             <span className="text-sm font-medium">Improvement:</span>
-            <span className="text-lg font-bold text-green-300">
+            <span className="text-lg font-bold text-green-600 dark:text-green-300">
               +{improvement.toFixed(1)} dB
             </span>
-            <TrendingUp className="w-4 h-4 text-green-400" />
-            <span className="text-sm text-slate-400">
+            <TrendingUp className="w-4 h-4 text-green-500 dark:text-green-400" />
+            <span className="text-sm text-slate-600 dark:text-slate-400">
               ({improvementRatio.toFixed(1)}x cleaner!)
             </span>
           </div>

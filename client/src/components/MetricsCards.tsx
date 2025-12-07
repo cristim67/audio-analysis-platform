@@ -73,23 +73,23 @@ export function MetricsCards({
     switch (color) {
       case "blue":
         return {
-          icon: "text-blue-400",
-          value: "text-blue-300",
+          icon: "text-blue-500 dark:text-blue-400",
+          value: "text-blue-600 dark:text-blue-300",
         };
       case "pink":
         return {
-          icon: "text-pink-400",
-          value: "text-pink-300",
+          icon: "text-pink-500 dark:text-pink-400",
+          value: "text-pink-600 dark:text-pink-300",
         };
       case "purple":
         return {
-          icon: "text-purple-400",
-          value: "text-purple-300",
+          icon: "text-purple-500 dark:text-purple-400",
+          value: "text-purple-600 dark:text-purple-300",
         };
       default:
         return {
-          icon: "text-slate-300",
-          value: "text-slate-200",
+          icon: "text-slate-600 dark:text-slate-300",
+          value: "text-slate-700 dark:text-slate-200",
         };
     }
   };
@@ -102,10 +102,10 @@ export function MetricsCards({
         return (
           <div
             key={metric.title}
-            className="bg-slate-800/80 backdrop-blur-sm border border-slate-700/50 rounded-lg p-4 hover:scale-105 transition-transform duration-200"
+            className="bg-white dark:bg-slate-800/80 backdrop-blur-sm border border-slate-200 dark:border-slate-700/50 rounded-lg p-4 hover:scale-105 transition-transform duration-200"
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-xs uppercase tracking-wide font-medium">
+              <span className="text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wide font-medium">
                 {metric.title}
               </span>
               <Icon className={`w-4 h-4 ${colors.icon}`} />
@@ -115,7 +115,9 @@ export function MetricsCards({
                 {metric.value}
               </span>
               {metric.unit && (
-                <span className="text-slate-500 text-sm">{metric.unit}</span>
+                <span className="text-slate-500 dark:text-slate-500 text-sm">
+                  {metric.unit}
+                </span>
               )}
             </div>
           </div>

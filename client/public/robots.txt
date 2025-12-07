@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Disallow API endpoints and WebSocket connections
+Disallow: /api/
+Disallow: /ws
+Disallow: /ws-dashboard
+
+# Allow static assets
+Allow: /static/

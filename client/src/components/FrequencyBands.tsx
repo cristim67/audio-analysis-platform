@@ -24,15 +24,17 @@ export const FrequencyBands = memo(function FrequencyBands({
   ];
 
   return (
-    <div className="bg-slate-800/80 border border-slate-700/50 rounded-lg p-4 shadow-lg">
+    <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/50 rounded-lg p-4 shadow-lg">
       <h3
         className={`text-sm font-semibold mb-4 ${
-          isRaw ? "text-blue-300" : "text-pink-300"
+          isRaw
+            ? "text-blue-600 dark:text-blue-300"
+            : "text-pink-600 dark:text-pink-300"
         }`}
       >
         {title}
       </h3>
-      <div className="flex justify-between items-end h-28 gap-1 bg-slate-900/50 rounded-lg p-3">
+      <div className="flex justify-between items-end h-28 gap-1 bg-slate-100 dark:bg-slate-900/50 rounded-lg p-3">
         {bands.map((value, index) => {
           const height = Math.max(4, (value / 100) * 100);
           return (
@@ -53,14 +55,14 @@ export const FrequencyBands = memo(function FrequencyBands({
                     : `0 0 8px rgba(244, 114, 182, ${(value / 100) * 0.4})`,
                 }}
               />
-              <span className="text-[9px] text-slate-500 font-medium whitespace-nowrap">
+              <span className="text-[9px] text-slate-600 dark:text-slate-500 font-medium whitespace-nowrap">
                 {freqLabels[index]}
               </span>
             </div>
           );
         })}
       </div>
-      <div className="text-center text-xs text-slate-500 mt-3">
+      <div className="text-center text-xs text-slate-600 dark:text-slate-500 mt-3">
         Frequency (Hz) — Voice Range
       </div>
     </div>

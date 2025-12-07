@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { Radio } from "lucide-react";
+import { Radio, Sun, Moon } from "lucide-react";
 import { useWebSocket } from "./hooks/useWebSocket";
+import { useTheme } from "./contexts/ThemeContext";
 import { StatusBar } from "./components/StatusBar";
 import { MetricsCards } from "./components/MetricsCards";
 import { WaveformChart } from "./components/WaveformChart";
@@ -18,6 +19,7 @@ const spectrogramWidth = 80;
 function App() {
   const { isConnected, isESP32Connected, lastData, sendFilterSettings } =
     useWebSocket();
+  const { theme, toggleTheme } = useTheme();
 
   const [waveformDataRaw, setWaveformDataRaw] = useState<number[]>([]);
   const [waveformDataFiltered, setWaveformDataFiltered] = useState<number[]>(
@@ -127,35 +129,48 @@ function App() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white transition-colors duration-200">
       <div className="container mx-auto px-4 py-6 max-w-[1800px]">
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl shadow-lg">
-              <Radio className="w-8 h-8 text-blue-400" />
+            <div className="p-3 bg-blue-500/10 dark:bg-blue-500/10 border border-blue-500/30 dark:border-blue-500/30 rounded-xl shadow-lg">
+              <Radio className="w-8 h-8 text-blue-500 dark:text-blue-400" />
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-slate-100">
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
                 Audio Analysis Platform
               </h1>
-              <p className="text-slate-400 text-sm">
+              <p className="text-slate-600 dark:text-slate-400 text-sm">
                 Real-Time Signal Processing & FFT Analysis
               </p>
             </div>
-            {isConnected && (
-              <div className="ml-auto flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-lg px-4 py-2 relative overflow-hidden">
-                <div className="absolute inset-0 bg-green-500/5 animate-pulse" />
-                <div className="relative flex items-center gap-2">
-                  <div className="relative">
-                    <div className="w-3 h-3 bg-green-400 rounded-full animate-ping absolute" />
-                    <div className="w-3 h-3 bg-green-400 rounded-full relative shadow-lg shadow-green-400/50" />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={toggleTheme}
+                className="p-2 rounded-lg bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
+                aria-label="Toggle theme"
+              >
+                {theme === "dark" ? (
+                  <Sun className="w-5 h-5 text-yellow-500" />
+                ) : (
+                  <Moon className="w-5 h-5 text-slate-700" />
+                )}
+              </button>
+              {isConnected && (
+                <div className="flex items-center gap-2 bg-green-500/10 dark:bg-green-500/10 border border-green-500/30 dark:border-green-500/30 rounded-lg px-4 py-2 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-green-500/5 dark:bg-green-500/5 animate-pulse" />
+                  <div className="relative flex items-center gap-2">
+                    <div className="relative">
+                      <div className="w-3 h-3 bg-green-500 dark:bg-green-400 rounded-full animate-ping absolute" />
+                      <div className="w-3 h-3 bg-green-500 dark:bg-green-400 rounded-full relative shadow-lg shadow-green-500/50 dark:shadow-green-400/50" />
+                    </div>
+                    <span className="text-green-600 dark:text-green-300 font-bold text-sm tracking-wider">
+                      ● LIVE
+                    </span>
                   </div>
-                  <span className="text-green-300 font-bold text-sm tracking-wider">
-                    ● LIVE
-                  </span>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <StatusBar

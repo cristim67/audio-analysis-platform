@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTheme } from "../contexts/ThemeContext";
 
 interface WaveformChartProps {
   data: number[];
@@ -15,6 +16,7 @@ export function WaveformChart({
   label,
   maxPoints = 60,
 }: WaveformChartProps) {
+  const { theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number>();
   const lastDataRef = useRef<number[]>([]);
@@ -54,11 +56,16 @@ export function WaveformChart({
       const plotW = w - marginLeft - 15;
       const plotH = h - marginBottom - 15;
 
-      // Clear canvas
-      ctx.fillStyle = "#0f172a";
+      // Clear canvas - theme-aware colors
+      const bgColor = theme === "light" ? "#f8fafc" : "#0f172a";
+      const plotBgColor = theme === "light" ? "#ffffff" : "#1e293b";
+      const gridColor = theme === "light" ? "#cbd5e1" : "#334155";
+      const textColor = theme === "light" ? "#475569" : "#94a3b8";
+
+      ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, w, h);
 
-      ctx.fillStyle = "#1e293b";
+      ctx.fillStyle = plotBgColor;
       ctx.fillRect(marginLeft, 10, plotW, plotH);
 
       // Draw grid lines
@@ -69,7 +76,7 @@ export function WaveformChart({
       ySteps.forEach((val) => {
         const y = 10 + plotH - (val / 100) * plotH;
 
-        ctx.strokeStyle = "#334155";
+        ctx.strokeStyle = gridColor;
         ctx.lineWidth = 1;
         ctx.setLineDash([2, 3]);
         ctx.beginPath();
@@ -78,17 +85,17 @@ export function WaveformChart({
         ctx.stroke();
         ctx.setLineDash([]);
 
-        ctx.fillStyle = "#94a3b8";
+        ctx.fillStyle = textColor;
         ctx.fillText(val + "%", marginLeft - 8, y + 4);
       });
 
       ctx.textAlign = "center";
-      ctx.fillStyle = "#94a3b8";
+      ctx.fillStyle = textColor;
       ctx.font = "10px system-ui, -apple-system, sans-serif";
       ctx.fillText("Time (seconds)", marginLeft + plotW / 2, h - 8);
 
       if (data.length < 2) {
-        ctx.fillStyle = "#64748b";
+        ctx.fillStyle = textColor;
         ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(
@@ -140,7 +147,7 @@ export function WaveformChart({
       ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = "#f1f5f9";
+      ctx.fillStyle = theme === "light" ? "#1e293b" : "#f1f5f9";
       ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
       ctx.textAlign = "left";
       const textX = Math.min(lastX + 10, w - 50);
@@ -152,17 +159,19 @@ export function WaveformChart({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [data, color, maxPoints]);
+  }, [data, color, maxPoints, theme]);
 
   return (
-    <div className="bg-slate-800/80 border border-slate-700/50 rounded-lg p-4 shadow-lg">
+    <div className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/50 rounded-lg p-4 shadow-lg">
       <div className="flex items-center gap-3 mb-3">
-        <h3 className="text-slate-200 font-semibold text-sm">{title}</h3>
+        <h3 className="text-slate-900 dark:text-slate-200 font-semibold text-sm">
+          {title}
+        </h3>
         <span
           className={`text-xs px-2 py-1 rounded font-medium border ${
             label === "RAW"
-              ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
-              : "bg-pink-500/20 text-pink-300 border-pink-500/30"
+              ? "bg-blue-500/20 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 border-blue-500/30 dark:border-blue-500/30"
+              : "bg-pink-500/20 dark:bg-pink-500/20 text-pink-600 dark:text-pink-300 border-pink-500/30 dark:border-pink-500/30"
           }`}
         >
           {label}
@@ -171,7 +180,7 @@ export function WaveformChart({
       <div className="relative">
         <canvas
           ref={canvasRef}
-          className="w-full rounded"
+          className="w-full rounded bg-slate-50 dark:bg-slate-900"
           style={{ height: "180px" }}
         />
       </div>
