@@ -92,6 +92,8 @@ http://localhost:8000/docs
 
 ![Frontend Dashboard](https://github.com/cristim67/psad-project/blob/main/images/frontend-dashboard.png)
 
+![Frontend Dashboard 2](https://github.com/cristim67/psad-project/blob/main/images/frontend-dashboard-2.png)
+
 ## 🚀 Running with Docker
 
 ### Prerequisites
