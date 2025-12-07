@@ -5,7 +5,6 @@ import {
   Settings,
   Radio,
   Volume2,
-  Clock,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -19,7 +18,6 @@ export interface FilterSettings {
   filterType: string;
   cutoffFreq: number;
   voiceBoost: number;
-  updateRate: number;
 }
 
 export function FilterControls({
@@ -30,7 +28,6 @@ export function FilterControls({
     filterType: "bandpass",
     cutoffFreq: 1200,
     voiceBoost: 150,
-    updateRate: 200,
   });
 
   const [isExpanded, setIsExpanded] = useState(true);
@@ -38,7 +35,6 @@ export function FilterControls({
     filterType: true,
     cutoffFreq: true,
     voiceBoost: true,
-    updateRate: true,
   });
 
   const filterTypes = [
@@ -61,7 +57,6 @@ export function FilterControls({
       filterType: "bypass",
       cutoffFreq: 1200,
       voiceBoost: 150,
-      updateRate: 200,
     };
     setSettings(resetSettings);
     onApplyFilter(resetSettings);
@@ -265,61 +260,6 @@ export function FilterControls({
                   <span>1.0x</span>
                   <span>2.0x</span>
                   <span>3.0x</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Update Rate - Collapsible */}
-          <div className="bg-slate-900/40 rounded-lg border border-slate-700/50 overflow-hidden">
-            <button
-              onClick={() => toggleSection("updateRate")}
-              className="w-full flex items-center justify-between p-4 hover:bg-slate-800/50 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <Clock className="w-4 h-4 text-purple-400" />
-                <span className="text-sm font-semibold text-slate-200">
-                  Update Rate
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-lg font-bold text-purple-300">
-                  {settings.updateRate} ms
-                </span>
-                {expandedSections.updateRate ? (
-                  <ChevronUp className="w-4 h-4 text-slate-400" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-slate-400" />
-                )}
-              </div>
-            </button>
-            {expandedSections.updateRate && (
-              <div className="px-4 pb-4 space-y-3">
-                <input
-                  type="range"
-                  min="50"
-                  max="500"
-                  step="10"
-                  value={settings.updateRate}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      updateRate: parseInt(e.target.value),
-                    })
-                  }
-                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, #a855f7 0%, #a855f7 ${
-                      ((settings.updateRate - 50) / (500 - 50)) * 100
-                    }%, #334155 ${
-                      ((settings.updateRate - 50) / (500 - 50)) * 100
-                    }%, #334155 100%)`,
-                  }}
-                />
-                <div className="flex justify-between text-xs text-slate-500">
-                  <span>50ms</span>
-                  <span>250ms</span>
-                  <span>500ms</span>
                 </div>
               </div>
             )}

@@ -48,6 +48,10 @@ float SMOOTHING_ALPHA = 0.5f;   // Alpha pentru smoothing exponențial (mai rapi
 float VOICE_BOOST = 2.0f;       // Boost pentru benzile de voce (500Hz-2500Hz) - mai mare
 float BAND_SMOOTH_ALPHA = 0.3f; // Smoothing pentru benzi FFT (mai rapid, mai precis)
 
+// Parametri filtru
+String filterType = "lowpass"; // lowpass, highpass, bandpass, notch, bypass
+int cutoffFreq = 1200;         // Frecvență cutoff în Hz
+
 // ============================================================================
 // BUFFERS ȘI VARIABILE DE STARE
 // ============================================================================
@@ -154,7 +158,31 @@ void parseFilterSettings(const char *json)
         }
     }
 
-    // Parse updateRate - ignorat, folosim interval fix de 250ms
+    // Parse filterType
+    idx = str.indexOf("\"filterType\":\"");
+    if (idx > 0)
+    {
+        int startIdx = idx + 14;
+        int endIdx = str.indexOf("\"", startIdx);
+        if (endIdx > startIdx)
+        {
+            String type = str.substring(startIdx, endIdx);
+            filterType = type;
+            Serial.printf("🎛️ Filter Type: %s\n", filterType.c_str());
+        }
+    }
+
+    // Parse cutoffFreq
+    idx = str.indexOf("\"cutoffFreq\":");
+    if (idx > 0)
+    {
+        int val = str.substring(idx + 13).toInt();
+        if (val >= 100 && val <= 8000)
+        {
+            cutoffFreq = val;
+            Serial.printf("🎛️ Cutoff Frequency: %d Hz\n", cutoffFreq);
+        }
+    }
 
     Serial.println("✅ Filter settings updated!");
 }
@@ -407,6 +435,65 @@ void applyBandSmoothing(float *rawBands, float *smoothedBands)
     }
 }
 
+// Aplică filtrul de frecvență pe benzi bazat pe filterType și cutoffFreq
+void applyFrequencyFilter(float *inputBands, float *outputBands)
+{
+    // Limite de frecvență pentru fiecare bandă (în Hz) - trebuie să fie identice cu cele din calculateBands
+    int bandLimits[NUM_BANDS + 1] = {0, 250, 500, 1000, 1500, 2000, 2500, 3000, 4000, 8000};
+
+    // Copiază input în output
+    for (int i = 0; i < NUM_BANDS; i++)
+    {
+        outputBands[i] = inputBands[i];
+    }
+
+    // Bypass - nu aplică niciun filtru
+    if (filterType == "bypass")
+    {
+        return;
+    }
+
+    // Aplică filtrul bazat pe tip
+    for (int i = 0; i < NUM_BANDS; i++)
+    {
+        // Calculează frecvența medie a benzii
+        float bandCenterFreq = (bandLimits[i] + bandLimits[i + 1]) / 2.0f;
+
+        if (filterType == "lowpass")
+        {
+            // Low-pass: elimină toate benzile peste cutoffFreq
+            if (bandCenterFreq > cutoffFreq)
+            {
+                outputBands[i] = 0;
+            }
+        }
+        else if (filterType == "highpass")
+        {
+            // High-pass: elimină toate benzile sub cutoffFreq
+            if (bandCenterFreq < cutoffFreq)
+            {
+                outputBands[i] = 0;
+            }
+        }
+        else if (filterType == "bandpass")
+        {
+            // Band-pass: păstrează doar benzile între cutoffFreq și cutoffFreq * 2
+            if (bandCenterFreq < cutoffFreq || bandCenterFreq > cutoffFreq * 2)
+            {
+                outputBands[i] = 0;
+            }
+        }
+        else if (filterType == "notch")
+        {
+            // Notch: elimină benzile în jurul cutoffFreq (±200Hz)
+            if (bandCenterFreq >= cutoffFreq - 200 && bandCenterFreq <= cutoffFreq + 200)
+            {
+                outputBands[i] = 0;
+            }
+        }
+    }
+}
+
 void applyNoiseGateToBands(float *inputBands, float *outputBands)
 {
     for (int i = 0; i < NUM_BANDS; i++)
@@ -556,8 +643,11 @@ void loop()
 
     applyBandSmoothing(bands, bands);
 
+    // Aplică filtrul de frecvență (low-pass, high-pass, etc.) pe benzi
+    applyFrequencyFilter(bands, bandsFiltered);
+
     // Aplică noise gate la benzi pentru versiunea filtrată
-    applyNoiseGateToBands(bands, bandsFiltered);
+    applyNoiseGateToBands(bandsFiltered, bandsFiltered);
 
     // ========== VOLUM RAW ==========
     int volumeRaw = (int)((float)amplitude * 100.0f / AMP_REF);

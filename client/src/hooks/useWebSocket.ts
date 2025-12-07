@@ -5,7 +5,6 @@ interface FilterSettings {
   filterType: string;
   cutoffFreq: number;
   voiceBoost: number;
-  updateRate: number;
 }
 
 export function useWebSocket() {
