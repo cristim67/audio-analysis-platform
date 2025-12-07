@@ -827,15 +827,20 @@ void loop()
     // Calculate PSNR: Peak Signal-to-Noise Ratio
     // PSNR = 20 * log10(MAX_VALUE / sqrt(MSE))
     // MAX_VALUE = 100 (maximum band value)
-    if (mse > 0.0f)
+    if (mse > 0.0001f) // Avoid very small MSE values
     {
         float maxValue = 100.0f;
         float sqrtMse = sqrtf(mse);
-        if (sqrtMse > 0.0f)
+        if (sqrtMse > 0.0001f) // Avoid division by very small numbers
         {
-            psnr = 20.0f * log10f(maxValue / sqrtMse);
+            float ratio = maxValue / sqrtMse;
+            if (ratio > 0.0001f) // Ensure ratio is valid for log
+            {
+                psnr = 20.0f * log10f(ratio);
+            }
         }
     }
+    // If MSE is 0 or very small, PSNR remains 0 (perfect match or no difference)
 
     // ========== RAW VOLUME ==========
     int volumeRaw = (int)((float)amplitude * 100.0f / AMP_REF);
@@ -872,7 +877,7 @@ void loop()
                  (int)bandsFiltered[0], (int)bandsFiltered[1], (int)bandsFiltered[2], (int)bandsFiltered[3],
                  (int)bandsFiltered[4], (int)bandsFiltered[5], (int)bandsFiltered[6], (int)bandsFiltered[7], (int)bandsFiltered[8]);
 
-        // Construiește mesajul JSON
+        // Build JSON message
         int msgLen = snprintf(msg, sizeof(msg),
                               "{\"source\":\"esp32\","
                               "\"type\":\"microphone_data\","
@@ -886,11 +891,13 @@ void loop()
                               "\"bandsFiltered\":%s,"
                               "\"calibrated\":%s,"
                               "\"snrRaw\":%.1f,"
-                              "\"snrFiltered\":%.1f}",
+                              "\"snrFiltered\":%.1f,"
+                              "\"mse\":%.2f,"
+                              "\"psnr\":%.2f}",
                               volumeRaw, volumeFiltered, amplitude, minVal, maxVal, avg,
                               bandsRawStr, bandsFilteredStr,
                               calibrated ? "true" : "false",
-                              snrRaw, snrFiltered);
+                              snrRaw, snrFiltered, mse, psnr);
 
         // Check if message was formatted correctly (no overflow)
         if (msgLen > 0 && msgLen < (int)sizeof(msg))

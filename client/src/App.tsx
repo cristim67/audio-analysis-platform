@@ -219,6 +219,8 @@ function App() {
           <SignalQuality
             snrRaw={lastData?.snrRaw}
             snrFiltered={lastData?.snrFiltered}
+            mse={lastData?.mse}
+            psnr={lastData?.psnr}
           />
 
           <MetricsCards {...currentMetrics} />
