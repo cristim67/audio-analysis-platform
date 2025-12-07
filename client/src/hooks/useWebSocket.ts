@@ -180,10 +180,22 @@ export function useWebSocket() {
 
   const sendFilterSettings = (settings: FilterSettings) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      // Pentru bandpass, trimite ambele cutoff-uri, altfel doar cutoffFreq
+      const settingsToSend: any = {
+        filterType: settings.filterType,
+        cutoffFreq: settings.cutoffFreq,
+        voiceBoost: settings.voiceBoost,
+      };
+
+      // Adaugă cutoffFreqHigh doar pentru bandpass
+      if (settings.filterType === "bandpass" && settings.cutoffFreqHigh) {
+        settingsToSend.cutoffFreqHigh = settings.cutoffFreqHigh;
+      }
+
       const msg = {
         type: "filter_settings",
         target: "esp32",
-        settings,
+        settings: settingsToSend,
       };
       wsRef.current.send(JSON.stringify(msg));
       return true;

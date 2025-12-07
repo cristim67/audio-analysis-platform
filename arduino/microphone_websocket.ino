@@ -49,8 +49,9 @@ float VOICE_BOOST = 2.0f;       // Boost pentru benzile de voce (500Hz-2500Hz) -
 float BAND_SMOOTH_ALPHA = 0.3f; // Smoothing pentru benzi FFT (mai rapid, mai precis)
 
 // Parametri filtru
-String filterType = "lowpass"; // lowpass, highpass, bandpass, notch, bypass
-int cutoffFreq = 1200;         // Frecvență cutoff în Hz
+String filterType = "lowpass"; // lowpass, highpass, bandpass, bypass
+int cutoffFreq = 1200;         // Frecvență cutoff în Hz (low pentru bandpass)
+int cutoffFreqHigh = 2500;     // Frecvență cutoff superioară în Hz (pentru bandpass)
 
 // ============================================================================
 // BUFFERS ȘI VARIABILE DE STARE
@@ -181,6 +182,18 @@ void parseFilterSettings(const char *json)
         {
             cutoffFreq = val;
             Serial.printf("🎛️ Cutoff Frequency: %d Hz\n", cutoffFreq);
+        }
+    }
+
+    // Parse cutoffFreqHigh (pentru bandpass)
+    idx = str.indexOf("\"cutoffFreqHigh\":");
+    if (idx > 0)
+    {
+        int val = str.substring(idx + 17).toInt();
+        if (val >= 100 && val <= 8000 && val > cutoffFreq)
+        {
+            cutoffFreqHigh = val;
+            Serial.printf("🎛️ Cutoff Frequency High: %d Hz\n", cutoffFreqHigh);
         }
     }
 
@@ -477,16 +490,8 @@ void applyFrequencyFilter(float *inputBands, float *outputBands)
         }
         else if (filterType == "bandpass")
         {
-            // Band-pass: păstrează doar benzile între cutoffFreq și cutoffFreq * 2
-            if (bandCenterFreq < cutoffFreq || bandCenterFreq > cutoffFreq * 2)
-            {
-                outputBands[i] = 0;
-            }
-        }
-        else if (filterType == "notch")
-        {
-            // Notch: elimină benzile în jurul cutoffFreq (±200Hz)
-            if (bandCenterFreq >= cutoffFreq - 200 && bandCenterFreq <= cutoffFreq + 200)
+            // Band-pass: păstrează doar benzile între cutoffFreq și cutoffFreqHigh
+            if (bandCenterFreq < cutoffFreq || bandCenterFreq > cutoffFreqHigh)
             {
                 outputBands[i] = 0;
             }
