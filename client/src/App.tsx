@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { Radio, Sun, Moon } from "lucide-react";
+import { Radio, Sun, Moon, BookOpen } from "lucide-react";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { useTheme } from "./contexts/ThemeContext";
 import { StatusBar } from "./components/StatusBar";
@@ -145,6 +145,15 @@ function App() {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              <a
+                href="/documentatie.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/10 dark:bg-blue-500/10 border border-blue-500/30 dark:border-blue-500/30 hover:bg-blue-500/20 dark:hover:bg-blue-500/20 transition-colors text-blue-600 dark:text-blue-300 font-medium text-sm"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>Docs</span>
+              </a>
               <button
                 onClick={toggleTheme}
                 className="p-2 rounded-lg bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
